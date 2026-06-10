@@ -2,7 +2,6 @@ import { Elysia } from "elysia";
 import { initLogger } from "evlog";
 import { env } from "./config/env";
 import { healthRoutes } from "./routes/health";
-import { mockupRoutes } from "./routes/mockups";
 
 initLogger({
   env: {
@@ -61,10 +60,7 @@ initLogger({
 //   console.log(`Listening on http://localhost:${port} (${env.nodeEnv})`);
 // }
 
-const app = new Elysia()
-  .get("/", () => "Hello World")
-  .use(healthRoutes)
-  .use(mockupRoutes);
+const app = new Elysia().get("/", () => "Hello World").use(healthRoutes);
 
 export const GET = app.handle;
 export const POST = app.handle;
