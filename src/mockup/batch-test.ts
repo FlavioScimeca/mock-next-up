@@ -1,5 +1,6 @@
-import { readdir } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { formatDurationMinutes } from "../lib/duration.js";
 import { env } from "../config/env.js";
 import { MockupError } from "./errors.js";
 import { withRenderLock } from "./lock.js";
@@ -29,6 +30,7 @@ export interface TestMockupItemResult {
   design: string;
   designPath: string;
   success: boolean;
+  duration: string;
   outputPath?: string;
   width?: number;
   height?: number;
@@ -42,6 +44,7 @@ export interface TestMockupsResult {
   total: number;
   succeeded: number;
   failed: number;
+  totalDuration: string;
   results: TestMockupItemResult[];
 }
 
@@ -64,12 +67,15 @@ export async function renderTestMockups(options: {
     `[render-test-batch] templateId=${templateId} designs=${designPaths.length}`,
   );
 
+  const batchStartedAt = Date.now();
   const results: TestMockupItemResult[] = [];
 
   for (const designPath of designPaths) {
     const design = designPath.startsWith(env.projectRoot)
       ? designPath.slice(env.projectRoot.length + 1)
       : designPath;
+
+    const itemStartedAt = Date.now();
 
     try {
       const result = await withRenderLock(() =>
@@ -80,33 +86,57 @@ export async function renderTestMockups(options: {
         }),
       );
 
-      results.push(toSuccessItem(design, designPath, result));
+      results.push(
+        toSuccessItem(design, designPath, result, Date.now() - itemStartedAt),
+      );
     } catch (error) {
-      results.push(toFailureItem(design, designPath, error));
+      results.push(
+        toFailureItem(design, designPath, error, Date.now() - itemStartedAt),
+      );
     }
   }
 
   const succeeded = results.filter((item) => item.success).length;
 
-  return {
+  const response: TestMockupsResult = {
     success: true,
     templateId,
     total: results.length,
     succeeded,
     failed: results.length - succeeded,
+    totalDuration: formatDurationMinutes(Date.now() - batchStartedAt),
     results,
   };
+
+  if (env.isVercel) {
+    await cleanupVercelTestOutputs();
+  }
+
+  return response;
+}
+
+async function cleanupVercelTestOutputs(): Promise<void> {
+  try {
+    await rm(env.outputsDir, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(
+      `[render-test-batch] failed to clean ${env.outputsDir}:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 function toSuccessItem(
   design: string,
   designPath: string,
   result: RenderResult,
+  durationMs: number,
 ): TestMockupItemResult {
   return {
     design,
     designPath,
     success: true,
+    duration: formatDurationMinutes(durationMs),
     outputPath: result.outputPath,
     width: result.width,
     height: result.height,
@@ -117,12 +147,14 @@ function toFailureItem(
   design: string,
   designPath: string,
   error: unknown,
+  durationMs: number,
 ): TestMockupItemResult {
   if (error instanceof MockupError) {
     return {
       design,
       designPath,
       success: false,
+      duration: formatDurationMinutes(durationMs),
       error: error.message,
       code: error.code,
     };
@@ -133,6 +165,7 @@ function toFailureItem(
     design,
     designPath,
     success: false,
+    duration: formatDurationMinutes(durationMs),
     error: message,
     code: "RENDER_FAILURE",
   };

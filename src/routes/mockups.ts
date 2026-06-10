@@ -137,6 +137,7 @@ export const mockupRoutes = new Elysia()
             total: result.total,
             succeeded: result.succeeded,
             failed: result.failed,
+            totalDuration: result.totalDuration,
           },
         });
 
