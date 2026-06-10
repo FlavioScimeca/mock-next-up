@@ -59,28 +59,24 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 ### Vercel deployment (Node.js, Linux x64)
 
-Deploy with the **Node.js** runtime (no `bunVersion` in [`vercel.json`](vercel.json)). Local dev can still use Bun.
+Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-Elysia uses `src/index.ts`, not `api/`, so **`functions.includeFiles` cannot be used** (Vercel only allows that for routes under `api/`).
-
-Instead, a **postinstall** step copies linux sharp binaries into `src/vendor/sharp-native/` during the Vercel build. Those files ship with your `src/` tree, and [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads them on Vercel.
+Vercel’s file tracer drops `node_modules/@img/**` unless you opt in. This project uses an **`api/index.ts` entry** (re-exporting [`src/app.ts`](src/app.ts)) so `functions.includeFiles` is valid:
 
 [`vercel.json`](vercel.json):
 
 ```json
 {
-  "installCommand": "npm install --include=optional"
+  "installCommand": "npm install --include=optional",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "node_modules/@img/**"
+    }
+  }
 }
 ```
 
-[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) runs after install when `VERCEL=1` and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64`.
-
-In the Vercel build log you should see:
-
-```txt
-postinstall-sharp: copied sharp-linux-x64
-postinstall-sharp: copied sharp-libvips-linux-x64
-```
+[`src/index.ts`](src/index.ts) is **local dev only** (starts the listener). Production traffic goes through [`api/index.ts`](api/index.ts).
 
 Mockup routes lazy-load sharp on first request. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
 
@@ -109,7 +105,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | `postinstall-sharp.mjs` copies `@img/*` into `src/vendor/` on install |
+| Vercel | glibc | x64 | `api/index.ts` + `includeFiles: node_modules/@img/**` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

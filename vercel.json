@@ -1,6 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install --include=optional",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "node_modules/@img/**"
+    }
+  },
   "env": {
     "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
   }

@@ -47,6 +47,3 @@ dist/*
 
 outputs/
 uploads/
-
-src/vendor/sharp-native/*
-!src/vendor/sharp-native/.gitkeep
