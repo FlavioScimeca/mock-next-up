@@ -30,18 +30,28 @@ for (const name of packages) {
   console.log(`postinstall-sharp: copied ${name} -> api/sharp-native/${name}`);
 }
 
-const bindingPath = join(targetRoot, "sharp-linux-x64", "sharp.node");
-const libDir = join(targetRoot, "sharp-libvips-linux-x64", "lib");
+const sharpLibDir = join(targetRoot, "sharp-linux-x64", "lib");
+const libvipsLibDir = join(targetRoot, "sharp-libvips-linux-x64", "lib");
 
-if (!existsSync(bindingPath)) {
-  console.error(`postinstall-sharp: missing binding ${bindingPath}`);
-  console.error(`postinstall-sharp: api/sharp-native contents: ${readdirSync(targetRoot).join(", ")}`);
+if (!existsSync(sharpLibDir)) {
+  console.error(`postinstall-sharp: missing sharp lib dir ${sharpLibDir}`);
   process.exit(1);
 }
 
-if (!existsSync(libDir)) {
-  console.error(`postinstall-sharp: missing libvips dir ${libDir}`);
+const sharpNode = readdirSync(sharpLibDir).find((name) => name.endsWith(".node"));
+
+if (!sharpNode) {
+  console.error(
+    `postinstall-sharp: no .node binding in ${sharpLibDir}: ${readdirSync(sharpLibDir).join(", ")}`,
+  );
   process.exit(1);
 }
 
+if (!existsSync(libvipsLibDir)) {
+  console.error(`postinstall-sharp: missing libvips lib dir ${libvipsLibDir}`);
+  process.exit(1);
+}
+
+console.log(`postinstall-sharp: binding=${join(sharpLibDir, sharpNode)}`);
+console.log(`postinstall-sharp: libvips=${libvipsLibDir}`);
 console.log("postinstall-sharp: ready");
