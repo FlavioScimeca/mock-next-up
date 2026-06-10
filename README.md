@@ -57,34 +57,22 @@ The same luminance-derived alpha mask is applied to the design, shadow, and high
 
 Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for structured request-wide events. `/health` is excluded from request logging.
 
-### Vercel deployment (Node.js, Linux x64)
+### Vercel deployment (Node.js, WebAssembly sharp)
 
 Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-### Vercel deployment (Node.js, WebAssembly sharp)
-
 Native linux sharp needs `libvips-cpp.so`, which Vercel’s bundle repeatedly dropped. **Vercel builds use `@img/sharp-wasm32` instead** (slower, no libvips `.so`).
 
-On linux CI/Vercel, [`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs):
+On linux CI/Vercel, [`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) copies wasm into `src/native/sharp-wasm32/` and writes [`src/mockup/sharp-vercel-binding.cjs`](src/mockup/sharp-vercel-binding.cjs) so the tracer ships both the `.node.js` loader and `.wasm` binary.
 
-1. Copies `@img/sharp-wasm32` → `src/native/sharp-wasm32/`
-2. Writes [`src/mockup/sharp-vercel-binding.cjs`](src/mockup/sharp-vercel-binding.cjs) with a static `require()` so Vercel’s tracer ships the wasm files
-
-[`src/app.ts`](src/app.ts) imports the binding module so the trace starts at the function entry.
-
-[`vercel.json`](vercel.json):
+[`vercel.json`](vercel.json) `includeFiles` must bundle wasm **and** mockup assets:
 
 ```json
-{
-  "installCommand": "npm install --include=optional && node scripts/postinstall-sharp.mjs",
-  "buildCommand": "node scripts/postinstall-sharp.mjs",
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "src/native/**"
-    }
-  }
-}
+"includeFiles": "{src/native/sharp-wasm32/lib/*,src/assets/**}"
 ```
+
+- **`POST /mockups/render`** — upload a design PNG (works without `src/assets/designs/` on disk)
+- **`POST /mockups/test`** — reads all PNGs from `src/assets/designs/` (requires that folder in the bundle)
 
 Local macOS dev still uses the native darwin sharp binary from `bun install`.
 
