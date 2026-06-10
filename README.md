@@ -61,20 +61,7 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-Native linux sharp needs `libvips-cpp.so`, which Vercel’s bundle repeatedly dropped. **Vercel builds use `@img/sharp-wasm32` instead** (slower, no libvips `.so`).
-
-On linux CI/Vercel, [`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) copies wasm into `src/native/sharp-wasm32/` and writes [`src/mockup/sharp-vercel-binding.cjs`](src/mockup/sharp-vercel-binding.cjs) so the tracer ships both the `.node.js` loader and `.wasm` binary.
-
-[`vercel.json`](vercel.json) `includeFiles` must bundle wasm **and** mockup assets:
-
-```json
-"includeFiles": "{src/native/sharp-wasm32/lib/*,src/assets/**}"
-```
-
-- **`POST /mockups/render`** — upload a design PNG (works without `src/assets/designs/` on disk)
-- **`POST /mockups/test`** — reads all PNGs from `src/assets/designs/` (requires that folder in the bundle)
-
-Local macOS dev still uses the native darwin sharp binary from `bun install`.
+See **[docs/vercel-deployment.md](docs/vercel-deployment.md)** for the full write-up: Sharp wasm bundling, `api/vendor/` assets, Bun vs Node split, errors we hit, and troubleshooting.
 
 [`src/index.ts`](src/index.ts) is **local dev only** (starts the listener). Production traffic goes through [`api/index.ts`](api/index.ts).
 
