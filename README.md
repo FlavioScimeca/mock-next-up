@@ -74,32 +74,32 @@ For `sharp` on Vercel, optional `@img/sharp-linux-x64` packages are listed in [`
 
 ### Linux ARM64 + musl (Alpine, many containers)
 
-If you deploy to **linux arm64 with musl** (e.g. Alpine-based machines), install the matching sharp binaries at build time. See [sharp cross-platform install](https://sharp.pixelplumbing.com/install/#cross-platform).
+If you deploy to **linux arm64 with musl** (e.g. Alpine-based machines), install the matching sharp binaries at build time. See [sharp cross-platform install](https://sharp.pixelplumbing.com/install/#cross-platform) (Bun is supported: `bun add sharp`).
 
-**buildspec / CI example** (after `npm install`):
-
-```bash
-npm install --cpu=arm64 --os=linux --libc=musl sharp
-```
-
-Or use the npm script:
+**buildspec / CI example** (after `bun install`):
 
 ```bash
-npm run install:sharp:linux-arm64-musl
+bun add --cpu=arm64 --os=linux --optional @img/sharp-linuxmusl-arm64@0.35.0 @img/sharp-libvips-linuxmusl-arm64@1.3.0
 ```
 
-Pinned optional packages for that target:
+Or use the Bun script:
+
+```bash
+bun run install:sharp:linux-arm64-musl
+```
+
+Pinned optional packages for that target (already in [`package.json`](package.json)):
 
 - `@img/sharp-linuxmusl-arm64@0.35.0`
 - `@img/sharp-libvips-linuxmusl-arm64@1.3.0`
 
-Build on the same OS/arch as production (or use the flags above). Do not rely on macOS `node_modules` on Linux arm64.
+Build on the same OS/arch as production, or run the command above on your CI agent. Do not copy macOS `node_modules` onto Linux arm64.
 
-| Deploy target | libc | CPU | sharp install flags |
-|---------------|------|-----|---------------------|
-| Vercel | glibc | x64 | default on Vercel builders |
-| Alpine / musl container | musl | arm64 | `--cpu=arm64 --os=linux --libc=musl` |
-| Debian/Ubuntu container | glibc | arm64 | `--cpu=arm64 --os=linux --libc=glibc` |
+| Deploy target | libc | CPU | Bun install |
+|---------------|------|-----|-------------|
+| Vercel | glibc | x64 | `bun install` on Vercel builders |
+| Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
+| Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 
 ## Development
 
