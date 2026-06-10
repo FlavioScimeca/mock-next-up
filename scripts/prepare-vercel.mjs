@@ -66,6 +66,15 @@ if (!existsSync(templateConfig)) {
   process.exit(1);
 }
 
+const sampleDesignName = readdirSync(designsDir)
+  .filter((name) => name.toLowerCase().endsWith(".png"))
+  .sort((a, b) => a.localeCompare(b))[0];
+
+if (!sampleDesignName) {
+  console.error(`prepare-vercel: no PNG designs in ${designsDir}`);
+  process.exit(1);
+}
+
 const bindingModule = join(root, "src", "platform", "sharp", "vercel-binding.cjs");
 const assetsModule = join(root, "src", "platform", "sharp", "vercel-assets.cjs");
 
@@ -75,7 +84,7 @@ writeFileSync(
 const { join } = require("path");
 const { existsSync, readFileSync } = require("fs");
 
-const libDir = join(__dirname, "../../../api/vendor/sharp-wasm32/lib");
+const libDir = join(process.cwd(), "api/vendor/sharp-wasm32/lib");
 const wasmBinaryPath = join(libDir, ${JSON.stringify(wasmBinary)});
 const wasmLoaderPath = join(libDir, ${JSON.stringify(wasmLoader)});
 
@@ -94,9 +103,9 @@ writeFileSync(
 const { join } = require("path");
 const { existsSync, readFileSync } = require("fs");
 
-const assetsRoot = join(__dirname, "../../../api/vendor/assets");
+const assetsRoot = join(process.cwd(), "api/vendor/assets");
 const templateConfig = join(assetsRoot, "templates/t-shirt/hang/white/v1/config.json");
-const sampleDesign = join(assetsRoot, "designs/design-01.png");
+const sampleDesign = join(assetsRoot, "designs", ${JSON.stringify(sampleDesignName)});
 
 for (const path of [templateConfig, sampleDesign]) {
   if (!existsSync(path)) {
@@ -109,6 +118,7 @@ module.exports = { assetsRoot };
 `,
 );
 
+console.log(`prepare-vercel: sampleDesign=${join(designsDir, sampleDesignName)}`);
 console.log(`prepare-vercel: wasm=${join(wasmLibDir, wasmLoader)}`);
 console.log(`prepare-vercel: assets=${join(vendorRoot, "assets")}`);
 console.log("prepare-vercel: ready");
