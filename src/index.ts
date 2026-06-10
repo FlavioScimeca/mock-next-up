@@ -1,8 +1,9 @@
 import { Elysia } from "elysia";
-import { initLogger } from "evlog";
+import { initLogger, parseError } from "evlog";
+import { evlog } from "evlog/elysia";
 import { env } from "./config/env";
+import { isMockupError, toErrorResponse } from "./mockup/errors";
 import { healthRoutes } from "./routes/health";
-import { mockupRoutes } from "./routes/mockups";
 
 initLogger({
   env: {
@@ -11,60 +12,61 @@ initLogger({
   },
 });
 
-// const app = new Elysia()
-//   .get("/", () => "Hello World")
-//   .use(
-//     evlog({
-//       exclude: ["/health"],
-//     }),
-//   )
-//   .use(healthRoutes)
-//   .use(mockupRoutes)
-//   .onError(({ error, set, code, log }) => {
-//     if (code === "VALIDATION") {
-//       set.status = 422;
-//       log?.set({ validation: { failed: true } });
-//       return error;
-//     }
+async function createApp() {
+  // Lazy import avoids Vercel cold-start TDZ from loading sharp at module init.
+  const { mockupRoutes } = await import("./routes/mockups");
 
-//     if (isMockupError(error)) {
-//       set.status = error.status;
-//       log?.set({
-//         error: { code: error.code, message: error.message },
-//       });
-//       return toErrorResponse(error);
-//     }
+  return new Elysia()
+    .use(
+      evlog({
+        exclude: ["/health"],
+      }),
+    )
+    .get("/", () => "Hello World")
+    .use(healthRoutes)
+    .use(mockupRoutes)
+    .onError(({ error, set, code, log }) => {
+      if (code === "VALIDATION") {
+        set.status = 422;
+        log?.set({ validation: { failed: true } });
+        return error;
+      }
 
-//     const parsed = parseError(error);
-//     set.status = parsed.status ?? 500;
-//     log?.set({
-//       error: {
-//         code: parsed.code,
-//         message: parsed.message,
-//         status: parsed.status,
-//       },
-//     });
+      if (isMockupError(error)) {
+        set.status = error.status;
+        log?.set({
+          error: { code: error.code, message: error.message },
+        });
+        return toErrorResponse(error);
+      }
 
-//     return {
-//       success: false,
-//       error: parsed.message,
-//       ...(parsed.why ? { why: parsed.why } : {}),
-//       ...(parsed.fix ? { fix: parsed.fix } : {}),
-//       ...(parsed.link ? { link: parsed.link } : {}),
-//     };
-//   });
+      const parsed = parseError(error);
+      set.status = parsed.status ?? 500;
+      log?.set({
+        error: {
+          code: parsed.code,
+          message: parsed.message,
+          status: parsed.status,
+        },
+      });
 
-// if (env.isDevelopment) {
-//   const port = env.port;
-//   app.listen(port);
+      return {
+        success: false,
+        error: parsed.message,
+        ...(parsed.why ? { why: parsed.why } : {}),
+        ...(parsed.fix ? { fix: parsed.fix } : {}),
+        ...(parsed.link ? { link: parsed.link } : {}),
+      };
+    });
+}
 
-//   console.log(`Listening on http://localhost:${port} (${env.nodeEnv})`);
-// }
+const app = await createApp();
 
-const app = new Elysia()
-  .get("/", () => "Hello World")
-  .use(healthRoutes)
-  .use(mockupRoutes);
+if (env.isDevelopment) {
+  app.listen(env.port);
+
+  console.log(`Listening on http://localhost:${env.port} (${env.nodeEnv})`);
+}
 
 export const GET = app.handle;
 export const POST = app.handle;

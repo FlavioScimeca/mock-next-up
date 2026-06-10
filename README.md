@@ -57,6 +57,12 @@ The same luminance-derived alpha mask is applied to the design, shadow, and high
 
 Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for structured request-wide events. `/health` is excluded from request logging.
 
+### Vercel deployment
+
+Mockup routes are always enabled. [`src/index.ts`](src/index.ts) lazy-loads the mockup module so `sharp` is not imported during the initial module pass (fixes `Cannot access 'default' before initialization` on cold start).
+
+On Vercel, writable dirs automatically use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`. Template assets are bundled via [`vercel.json`](vercel.json) `includeFiles`.
+
 ## Development
 
 Install dependencies:
