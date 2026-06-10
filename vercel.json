@@ -1,11 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "bunVersion": "1.x",
-  "functions": {
-    "src/index.ts": {
-      "includeFiles": "src/assets/**",
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  }
+  "bunVersion": "1.x"
 }
