@@ -61,13 +61,14 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-Vercel’s tracer often drops `node_modules/@img/**` even with `includeFiles`. This repo **copies** linux sharp + libvips into `api/sharp-native/` on install, then explicitly includes that folder in the function bundle.
+Vercel’s file tracer **respects `.gitignore`**, so copied binaries under `api/sharp-native/` must **not** be gitignored (that was blocking `includeFiles`).
 
 [`vercel.json`](vercel.json):
 
 ```json
 {
-  "installCommand": "npm install --include=optional",
+  "installCommand": "npm install --include=optional && node scripts/postinstall-sharp.mjs",
+  "buildCommand": "node scripts/postinstall-sharp.mjs",
   "functions": {
     "api/index.ts": {
       "includeFiles": "api/sharp-native/**"
@@ -76,7 +77,7 @@ Vercel’s tracer often drops `node_modules/@img/**` even with `includeFiles`. T
 }
 ```
 
-[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) runs when `VERCEL=1` and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64` next to the serverless entry. [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads that binding on Vercel.
+[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) runs on **linux** (Vercel builders) and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64` into `api/sharp-native/`.
 
 Build log should show:
 

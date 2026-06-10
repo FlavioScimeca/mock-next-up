@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install --include=optional",
+  "installCommand": "npm install --include=optional && node scripts/postinstall-sharp.mjs",
+  "buildCommand": "node scripts/postinstall-sharp.mjs",
   "functions": {
     "api/index.ts": {
       "includeFiles": "api/sharp-native/**"

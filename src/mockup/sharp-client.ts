@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type Sharp from "sharp";
 import { env } from "../config/env.js";
 
@@ -21,10 +22,34 @@ function patchSharpBindingModule(binding: unknown): void {
   } as unknown as NodeModule;
 }
 
+function resolveVercelNativePaths(): { bindingPath: string; libDir: string } {
+  const apiRoot = join(env.projectRoot, "api/sharp-native");
+  const apiBinding = join(apiRoot, "sharp-linux-x64", "sharp.node");
+  const apiLibDir = join(apiRoot, "sharp-libvips-linux-x64", "lib");
+
+  if (existsSync(apiBinding) && existsSync(apiLibDir)) {
+    return { bindingPath: apiBinding, libDir: apiLibDir };
+  }
+
+  const sharpDir = dirname(require.resolve("@img/sharp-linux-x64/package.json"));
+  const libvipsDir = dirname(
+    require.resolve("@img/sharp-libvips-linux-x64/package.json"),
+  );
+
+  return {
+    bindingPath: join(sharpDir, "sharp.node"),
+    libDir: join(libvipsDir, "lib"),
+  };
+}
+
 function initVercelSharp(): void {
-  const nativeRoot = join(env.projectRoot, "api/sharp-native");
-  const libDir = join(nativeRoot, "sharp-libvips-linux-x64", "lib");
-  const bindingPath = join(nativeRoot, "sharp-linux-x64", "sharp.node");
+  const { bindingPath, libDir } = resolveVercelNativePaths();
+
+  if (!existsSync(bindingPath)) {
+    throw new Error(
+      `sharp native binding not found at ${bindingPath}. Check Vercel build logs for postinstall-sharp.`,
+    );
+  }
 
   process.env.LD_LIBRARY_PATH = libDir;
   patchSharpBindingModule(require(bindingPath));

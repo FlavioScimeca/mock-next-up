@@ -1,11 +1,11 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-if (!process.env.VERCEL) {
-  console.log("postinstall-sharp: skipped (local install)");
+if (process.platform !== "linux") {
+  console.log(`postinstall-sharp: skipped (${process.platform})`);
   process.exit(0);
 }
 
@@ -29,3 +29,19 @@ for (const name of packages) {
   cpSync(src, join(targetRoot, name), { recursive: true });
   console.log(`postinstall-sharp: copied ${name} -> api/sharp-native/${name}`);
 }
+
+const bindingPath = join(targetRoot, "sharp-linux-x64", "sharp.node");
+const libDir = join(targetRoot, "sharp-libvips-linux-x64", "lib");
+
+if (!existsSync(bindingPath)) {
+  console.error(`postinstall-sharp: missing binding ${bindingPath}`);
+  console.error(`postinstall-sharp: api/sharp-native contents: ${readdirSync(targetRoot).join(", ")}`);
+  process.exit(1);
+}
+
+if (!existsSync(libDir)) {
+  console.error(`postinstall-sharp: missing libvips dir ${libDir}`);
+  process.exit(1);
+}
+
+console.log("postinstall-sharp: ready");
