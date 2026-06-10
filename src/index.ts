@@ -14,6 +14,7 @@ initLogger({
 });
 
 const app = new Elysia()
+  .get("/", () => "Hello World")
   .use(
     evlog({
       exclude: ["/health"],
