@@ -2,16 +2,15 @@ import { Elysia } from "elysia";
 import { initLogger, parseError } from "evlog";
 import { evlog } from "evlog/elysia";
 import { env } from "./config/env";
-import {
-  getErrorStatus,
-  isMockupError,
-  toErrorResponse,
-} from "./mockup/errors";
+import { isMockupError, toErrorResponse } from "./mockup/errors";
 import { healthRoutes } from "./routes/health";
 import { mockupRoutes } from "./routes/mockups";
 
 initLogger({
-  env: { service: process.env.EVLOG_SERVICE ?? "mock-next-up" },
+  env: {
+    service: process.env.EVLOG_SERVICE ?? "mock-next-up",
+    environment: env.nodeEnv,
+  },
 });
 
 const app = new Elysia()
@@ -56,10 +55,11 @@ const app = new Elysia()
     };
   });
 
-if (import.meta.main) {
+if (env.isDevelopment) {
   const port = env.port;
   app.listen(port);
-  console.log(`Listening on http://localhost:${port}`);
+
+  console.log(`Listening on http://localhost:${port} (${env.nodeEnv})`);
 }
 
 export const GET = app.handle;

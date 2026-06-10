@@ -39,7 +39,7 @@ export class RenderProgress {
     const label = `step-${entry.step}`;
     const suffix = entry.info ? ` ${formatStepInfo(entry.info)}` : "";
 
-    if (process.env.NODE_ENV !== "production") {
+    if (env.isDevelopment) {
       console.log(`[render] ${label} ${entry.name}${suffix}`);
     }
 
