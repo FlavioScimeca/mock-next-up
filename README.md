@@ -61,7 +61,16 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-Copied binaries under `src/native/` must **not** be gitignored (Vercel’s tracer respects `.gitignore`).
+### Vercel deployment (Node.js, WebAssembly sharp)
+
+Native linux sharp needs `libvips-cpp.so`, which Vercel’s bundle repeatedly dropped. **Vercel builds use `@img/sharp-wasm32` instead** (slower, no libvips `.so`).
+
+On linux CI/Vercel, [`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs):
+
+1. Copies `@img/sharp-wasm32` → `src/native/sharp-wasm32/`
+2. Writes [`src/mockup/sharp-vercel-binding.cjs`](src/mockup/sharp-vercel-binding.cjs) with a static `require()` so Vercel’s tracer ships the wasm files
+
+[`src/app.ts`](src/app.ts) imports the binding module so the trace starts at the function entry.
 
 [`vercel.json`](vercel.json):
 
@@ -77,9 +86,7 @@ Copied binaries under `src/native/` must **not** be gitignored (Vercel’s trace
 }
 ```
 
-[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) copies linux sharp + libvips into `src/native/sharp-native/` (and `api/sharp-native/` as backup). [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads via each package’s `index.cjs` — sharp 0.35 no longer ships a root-level `sharp.node`.
-
-[`vercel.json`](vercel.json) uses `includeFiles: "src/native/**"` on `api/index.ts`.
+Local macOS dev still uses the native darwin sharp binary from `bun install`.
 
 [`src/index.ts`](src/index.ts) is **local dev only** (starts the listener). Production traffic goes through [`api/index.ts`](api/index.ts).
 
@@ -110,7 +117,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | postinstall → `src/native/sharp-native/` + `includeFiles` |
+| Vercel | serverless x64 | x64 | `@img/sharp-wasm32` + `sharp-vercel-binding.cjs` trace |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

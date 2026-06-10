@@ -1,4 +1,11 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,38 +16,39 @@ if (process.platform !== "linux") {
   process.exit(0);
 }
 
-const packages = ["sharp-linux-x64", "sharp-libvips-linux-x64"];
-const targetRoots = [
-  join(root, "src", "native", "sharp-native"),
-  join(root, "api", "sharp-native"),
-];
+const wasmSrc = join(root, "node_modules", "@img", "sharp-wasm32");
 
-for (const targetRoot of targetRoots) {
-  if (existsSync(targetRoot)) {
-    rmSync(targetRoot, { recursive: true, force: true });
-  }
-
-  mkdirSync(targetRoot, { recursive: true });
-
-  for (const name of packages) {
-    const src = join(root, "node_modules", "@img", name);
-
-    if (!existsSync(src)) {
-      console.error(`postinstall-sharp: missing ${src}`);
-      process.exit(1);
-    }
-
-    cpSync(src, join(targetRoot, name), { recursive: true });
-  }
-
-  const sharpLibDir = join(targetRoot, "sharp-linux-x64", "lib");
-  const libvipsLibDir = join(targetRoot, "sharp-libvips-linux-x64", "lib");
-  const sharpNode = readdirSync(sharpLibDir).find((name) => name.endsWith(".node"));
-
-  if (!sharpNode || !existsSync(libvipsLibDir)) {
-    console.error(`postinstall-sharp: invalid layout under ${targetRoot}`);
-    process.exit(1);
-  }
-
-  console.log(`postinstall-sharp: ready ${targetRoot}`);
+if (!existsSync(wasmSrc)) {
+  console.error(`postinstall-sharp: missing ${wasmSrc}`);
+  console.error("Add @img/sharp-wasm32 to dependencies for Vercel builds.");
+  process.exit(1);
 }
+
+const targetRoot = join(root, "src", "native", "sharp-wasm32");
+
+if (existsSync(targetRoot)) {
+  rmSync(targetRoot, { recursive: true, force: true });
+}
+
+cpSync(wasmSrc, targetRoot, { recursive: true });
+
+const wasmLibDir = join(targetRoot, "lib");
+const wasmEntry = readdirSync(wasmLibDir).find((name) => name.endsWith(".node.js"));
+
+if (!wasmEntry) {
+  console.error(`postinstall-sharp: no wasm loader in ${wasmLibDir}`);
+  process.exit(1);
+}
+
+const bindingModule = join(root, "src", "mockup", "sharp-vercel-binding.cjs");
+
+writeFileSync(
+  bindingModule,
+  `"use strict";
+module.exports = require("../native/sharp-wasm32/lib/${wasmEntry}");
+`,
+);
+
+console.log(`postinstall-sharp: wasm binding=${join(wasmLibDir, wasmEntry)}`);
+console.log(`postinstall-sharp: wrote ${bindingModule}`);
+console.log("postinstall-sharp: ready");

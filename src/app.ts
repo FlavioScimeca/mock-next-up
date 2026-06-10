@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { initLogger, parseError } from "evlog";
 import { evlog } from "evlog/elysia";
+import "./mockup/sharp-vercel-binding.cjs";
 import { env } from "./config/env.js";
 import { isMockupError, toErrorResponse } from "./mockup/errors.js";
 import { healthRoutes } from "./routes/health.js";
