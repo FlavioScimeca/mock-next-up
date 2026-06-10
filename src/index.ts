@@ -4,6 +4,7 @@ import { evlog } from "evlog/elysia";
 import { env } from "./config/env";
 import { isMockupError, toErrorResponse } from "./mockup/errors";
 import { healthRoutes } from "./routes/health";
+import { mockupRoutes } from "./routes/mockups";
 
 initLogger({
   env: {
@@ -12,55 +13,48 @@ initLogger({
   },
 });
 
-async function createApp() {
-  // Lazy import avoids Vercel cold-start TDZ from loading sharp at module init.
-  const { mockupRoutes } = await import("./routes/mockups");
+const app = new Elysia()
+  .use(
+    evlog({
+      exclude: ["/health"],
+    }),
+  )
+  .get("/", () => "Hello World")
+  .use(healthRoutes)
+  .use(mockupRoutes)
+  .onError(({ error, set, code, log }) => {
+    if (code === "VALIDATION") {
+      set.status = 422;
+      log?.set({ validation: { failed: true } });
+      return error;
+    }
 
-  return new Elysia()
-    .use(
-      evlog({
-        exclude: ["/health"],
-      }),
-    )
-    .get("/", () => "Hello World")
-    .use(healthRoutes)
-    .use(mockupRoutes)
-    .onError(({ error, set, code, log }) => {
-      if (code === "VALIDATION") {
-        set.status = 422;
-        log?.set({ validation: { failed: true } });
-        return error;
-      }
-
-      if (isMockupError(error)) {
-        set.status = error.status;
-        log?.set({
-          error: { code: error.code, message: error.message },
-        });
-        return toErrorResponse(error);
-      }
-
-      const parsed = parseError(error);
-      set.status = parsed.status ?? 500;
+    if (isMockupError(error)) {
+      set.status = error.status;
       log?.set({
-        error: {
-          code: parsed.code,
-          message: parsed.message,
-          status: parsed.status,
-        },
+        error: { code: error.code, message: error.message },
       });
+      return toErrorResponse(error);
+    }
 
-      return {
-        success: false,
-        error: parsed.message,
-        ...(parsed.why ? { why: parsed.why } : {}),
-        ...(parsed.fix ? { fix: parsed.fix } : {}),
-        ...(parsed.link ? { link: parsed.link } : {}),
-      };
+    const parsed = parseError(error);
+    set.status = parsed.status ?? 500;
+    log?.set({
+      error: {
+        code: parsed.code,
+        message: parsed.message,
+        status: parsed.status,
+      },
     });
-}
 
-const app = await createApp();
+    return {
+      success: false,
+      error: parsed.message,
+      ...(parsed.why ? { why: parsed.why } : {}),
+      ...(parsed.fix ? { fix: parsed.fix } : {}),
+      ...(parsed.link ? { link: parsed.link } : {}),
+    };
+  });
 
 if (env.isDevelopment) {
   app.listen(env.port);

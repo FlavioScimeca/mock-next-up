@@ -4,16 +4,37 @@ import { join } from "node:path";
 import { Elysia, t } from "elysia";
 import { env } from "../config/env";
 import { setRequestLog } from "../logging";
-import { renderTestMockups } from "../mockup/batch-test";
 import {
   getErrorStatus,
   MockupError,
   toErrorResponse,
 } from "../mockup/errors";
-import { withRenderLock } from "../mockup/lock";
-import { renderMockup } from "../mockup/render";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+type RenderDeps = {
+  renderMockup: typeof import("../mockup/render").renderMockup;
+  withRenderLock: typeof import("../mockup/lock").withRenderLock;
+  renderTestMockups: typeof import("../mockup/batch-test").renderTestMockups;
+};
+
+let renderDepsPromise: Promise<RenderDeps> | null = null;
+
+function loadRenderDeps(): Promise<RenderDeps> {
+  if (!renderDepsPromise) {
+    renderDepsPromise = Promise.all([
+      import("../mockup/render"),
+      import("../mockup/lock"),
+      import("../mockup/batch-test"),
+    ]).then(([render, lock, batch]) => ({
+      renderMockup: render.renderMockup,
+      withRenderLock: lock.withRenderLock,
+      renderTestMockups: batch.renderTestMockups,
+    }));
+  }
+
+  return renderDepsPromise;
+}
 
 function isPngBuffer(buffer: Buffer): boolean {
   if (buffer.length < 8) {
@@ -27,6 +48,7 @@ export const mockupRoutes = new Elysia()
   .post(
     "/mockups/render",
     async ({ body, set }) => {
+      const { renderMockup, withRenderLock } = await loadRenderDeps();
       const templateId = body.templateId?.trim();
 
       setRequestLog({ mockup: { route: "render", templateId } });
@@ -119,6 +141,7 @@ export const mockupRoutes = new Elysia()
   .post(
     "/mockups/test",
     async ({ body, query, set }) => {
+      const { renderTestMockups } = await loadRenderDeps();
       const templateId = body?.templateId ?? query.templateId;
       const debug = parseDebugFlag(body?.debug ?? query.debug);
 

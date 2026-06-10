@@ -59,7 +59,7 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 ### Vercel deployment
 
-Mockup routes are always enabled. [`src/index.ts`](src/index.ts) lazy-loads the mockup module so `sharp` is not imported during the initial module pass (fixes `Cannot access 'default' before initialization` on cold start).
+Mockup routes are always enabled. Heavy dependencies (`sharp`, render pipeline) load **on first mockup request**, not at server cold start — this avoids Vercel `Cannot access 'default' before initialization` errors.
 
 On Vercel, writable dirs automatically use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`. Template assets are bundled via [`vercel.json`](vercel.json) `includeFiles`.
 
