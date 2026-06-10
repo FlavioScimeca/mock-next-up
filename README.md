@@ -61,20 +61,26 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 Deploy with the **Node.js** runtime (no `bunVersion` in [`vercel.json`](vercel.json)). Local dev can still use Bun.
 
+Elysia uses `src/index.ts`, not `api/`, so **`functions.includeFiles` cannot be used** (Vercel only allows that for routes under `api/`).
+
+Instead, a **postinstall** step copies linux sharp binaries into `src/vendor/sharp-native/` during the Vercel build. Those files ship with your `src/` tree, and [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads them on Vercel.
+
 [`vercel.json`](vercel.json):
 
 ```json
 {
-  "installCommand": "npm install --include=optional",
-  "functions": {
-    "src/index.ts": {
-      "includeFiles": "node_modules/@img/**"
-    }
-  }
+  "installCommand": "npm install --include=optional"
 }
 ```
 
-`npm install --include=optional` pulls in `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` on Vercel’s Linux builders. `includeFiles` copies those native binaries into the serverless function bundle — without this, sharp fails with missing `libvips-cpp.so`. Template PNGs under `src/assets/` are shipped with the app source.
+[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) runs after install when `VERCEL=1` and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64`.
+
+In the Vercel build log you should see:
+
+```txt
+postinstall-sharp: copied sharp-linux-x64
+postinstall-sharp: copied sharp-libvips-linux-x64
+```
 
 Mockup routes lazy-load sharp on first request. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
 
@@ -103,7 +109,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | `npm install --include=optional` + `includeFiles` for `@img/**` |
+| Vercel | glibc | x64 | `postinstall-sharp.mjs` copies `@img/*` into `src/vendor/` on install |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 
