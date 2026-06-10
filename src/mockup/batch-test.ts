@@ -1,6 +1,7 @@
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { formatDurationMinutes } from "../lib/duration.js";
+import { formatMemoryBytes, readProcessRss } from "../lib/memory.js";
 import { env } from "../config/env.js";
 import { MockupError } from "./errors.js";
 import { withRenderLock } from "./lock.js";
@@ -31,6 +32,7 @@ export interface TestMockupItemResult {
   designPath: string;
   success: boolean;
   duration: string;
+  memory: string;
   outputPath?: string;
   width?: number;
   height?: number;
@@ -45,6 +47,7 @@ export interface TestMockupsResult {
   succeeded: number;
   failed: number;
   totalDuration: string;
+  totalMemory: string;
   results: TestMockupItemResult[];
 }
 
@@ -68,6 +71,8 @@ export async function renderTestMockups(options: {
   );
 
   const batchStartedAt = Date.now();
+  const batchStartRss = readProcessRss();
+  let peakRss = batchStartRss;
   const results: TestMockupItemResult[] = [];
 
   for (const designPath of designPaths) {
@@ -76,6 +81,7 @@ export async function renderTestMockups(options: {
       : designPath;
 
     const itemStartedAt = Date.now();
+    const itemStartRss = readProcessRss();
 
     try {
       const result = await withRenderLock(() =>
@@ -86,12 +92,28 @@ export async function renderTestMockups(options: {
         }),
       );
 
+      peakRss = Math.max(peakRss, readProcessRss());
+
       results.push(
-        toSuccessItem(design, designPath, result, Date.now() - itemStartedAt),
+        toSuccessItem(
+          design,
+          designPath,
+          result,
+          Date.now() - itemStartedAt,
+          readProcessRss() - itemStartRss,
+        ),
       );
     } catch (error) {
+      peakRss = Math.max(peakRss, readProcessRss());
+
       results.push(
-        toFailureItem(design, designPath, error, Date.now() - itemStartedAt),
+        toFailureItem(
+          design,
+          designPath,
+          error,
+          Date.now() - itemStartedAt,
+          readProcessRss() - itemStartRss,
+        ),
       );
     }
   }
@@ -105,6 +127,7 @@ export async function renderTestMockups(options: {
     succeeded,
     failed: results.length - succeeded,
     totalDuration: formatDurationMinutes(Date.now() - batchStartedAt),
+    totalMemory: formatMemoryBytes(peakRss - batchStartRss),
     results,
   };
 
@@ -131,12 +154,14 @@ function toSuccessItem(
   designPath: string,
   result: RenderResult,
   durationMs: number,
+  memoryBytes: number,
 ): TestMockupItemResult {
   return {
     design,
     designPath,
     success: true,
     duration: formatDurationMinutes(durationMs),
+    memory: formatMemoryBytes(memoryBytes),
     outputPath: result.outputPath,
     width: result.width,
     height: result.height,
@@ -148,6 +173,7 @@ function toFailureItem(
   designPath: string,
   error: unknown,
   durationMs: number,
+  memoryBytes: number,
 ): TestMockupItemResult {
   if (error instanceof MockupError) {
     return {
@@ -155,6 +181,7 @@ function toFailureItem(
       designPath,
       success: false,
       duration: formatDurationMinutes(durationMs),
+      memory: formatMemoryBytes(memoryBytes),
       error: error.message,
       code: error.code,
     };
@@ -166,6 +193,7 @@ function toFailureItem(
     designPath,
     success: false,
     duration: formatDurationMinutes(durationMs),
+    memory: formatMemoryBytes(memoryBytes),
     error: message,
     code: "RENDER_FAILURE",
   };
