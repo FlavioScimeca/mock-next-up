@@ -8,6 +8,12 @@ const app = new Elysia()
     }),
   });
 
+if (import.meta.main) {
+  const port = Number(process.env.PORT) || 3000;
+  app.listen(port);
+  console.log(`Listening on http://localhost:${port}`);
+}
+
 export const GET = app.handle;
 export const POST = app.handle;
 export const PATCH = app.handle;
