@@ -66,11 +66,15 @@ Minimal [`vercel.json`](vercel.json):
 ```json
 {
   "bunVersion": "1.x",
-  "installCommand": "bun install"
+  "installCommand": "bun install && bun add --cpu=x64 --os=linux sharp"
 }
 ```
 
-For `sharp` on Vercel, optional `@img/sharp-linux-x64` packages are listed in [`package.json`](package.json). Writable dirs on Vercel use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads` automatically when `VERCEL=1`.
+This mirrors the [Vercel community sharp fix](https://community.vercel.com/t/help-adding-sharp-to-serverless-function/6069): force **linux x64** native binaries at install time on Vercel's builders (their example used `npm install --arch=x64 --platform=linux sharp`).
+
+Do **not** use `install:sharp:linux-arm64-musl` on Vercel — that target is for Alpine ARM64 servers, not Vercel.
+
+Optional `@img/sharp-linux-x64` packages are also listed in [`package.json`](package.json). Writable dirs on Vercel use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads` when `VERCEL=1`.
 
 ### Linux ARM64 + musl (Alpine, many containers)
 
@@ -97,7 +101,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | `bun install` on Vercel builders |
+| Vercel | glibc | x64 | `vercel.json` → `bun install && bun add --cpu=x64 --os=linux sharp` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

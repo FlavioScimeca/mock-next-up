@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
-  "installCommand": "bun install",
+  "installCommand": "bun install && bun add --cpu=x64 --os=linux sharp",
   "env": {
     "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
   }
