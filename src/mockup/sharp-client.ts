@@ -1,14 +1,16 @@
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type Sharp from "sharp";
-import { env } from "../config/env";
+import { env } from "../config/env.js";
 
 const require = createRequire(import.meta.url);
+const moduleDir = dirname(fileURLToPath(import.meta.url));
 
 let sharpModule: typeof Sharp | null = null;
 
 function loadVercelNativeBinding(): unknown {
-  const vendorRoot = join(import.meta.dir, "..", "vendor", "sharp-native");
+  const vendorRoot = join(moduleDir, "..", "vendor", "sharp-native");
   const bindingPath = join(vendorRoot, "sharp-linux-x64", "sharp.node");
 
   return require(bindingPath);

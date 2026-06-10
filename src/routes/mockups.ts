@@ -2,33 +2,33 @@ import { randomBytes } from "node:crypto";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Elysia, t } from "elysia";
-import { env } from "../config/env";
-import { setRequestLog } from "../logging";
+import { env } from "../config/env.js";
+import { setRequestLog } from "../logging.js";
 import {
   getErrorStatus,
   MockupError,
   toErrorResponse,
-} from "../mockup/errors";
+} from "../mockup/errors.js";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 type RenderDeps = {
-  renderMockup: typeof import("../mockup/render").renderMockup;
-  withRenderLock: typeof import("../mockup/lock").withRenderLock;
-  renderTestMockups: typeof import("../mockup/batch-test").renderTestMockups;
+  renderMockup: typeof import("../mockup/render.js").renderMockup;
+  withRenderLock: typeof import("../mockup/lock.js").withRenderLock;
+  renderTestMockups: typeof import("../mockup/batch-test.js").renderTestMockups;
 };
 
 let renderDepsPromise: Promise<RenderDeps> | null = null;
 
 function loadRenderDeps(): Promise<RenderDeps> {
   if (!renderDepsPromise) {
-    renderDepsPromise = import("../mockup/sharp-init")
+    renderDepsPromise = import("../mockup/sharp-init.js")
       .then(({ ensureSharpReady }) => ensureSharpReady())
       .then(() =>
         Promise.all([
-          import("../mockup/render"),
-          import("../mockup/lock"),
-          import("../mockup/batch-test"),
+          import("../mockup/render.js"),
+          import("../mockup/lock.js"),
+          import("../mockup/batch-test.js"),
         ]),
       )
       .then(([render, lock, batch]) => ({

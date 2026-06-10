@@ -1,5 +1,5 @@
-import { env } from "../config/env";
-import { setRequestLog } from "../logging";
+import { env } from "../config/env.js";
+import { setRequestLog } from "../logging.js";
 
 export interface RenderStepEntry {
   step: number;

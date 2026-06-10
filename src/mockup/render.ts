@@ -1,13 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { env, getDebugDir } from "../config/env";
-import { MockupError } from "./errors";
-import { generateOutputFilename } from "./filenames";
-import { runRenderPipeline } from "./pipeline";
-import { RenderProgress } from "./progress";
-import { ensureSharpReady } from "./sharp-init";
-import { loadTemplate } from "./template";
-import type { RenderOptions, RenderResult } from "./types";
+import { env, getDebugDir } from "../config/env.js";
+import { MockupError } from "./errors.js";
+import { generateOutputFilename } from "./filenames.js";
+import { runRenderPipeline } from "./pipeline.js";
+import { RenderProgress } from "./progress.js";
+import { ensureSharpReady } from "./sharp-init.js";
+import { loadTemplate } from "./template.js";
+import type { RenderOptions, RenderResult } from "./types.js";
 
 export async function renderMockup(options: RenderOptions): Promise<RenderResult> {
   await ensureSharpReady();

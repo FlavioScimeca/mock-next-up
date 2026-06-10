@@ -1,14 +1,14 @@
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { getSharp } from "./sharp-client";
-import { env } from "../config/env";
-import { validateTemplateConfig } from "./config";
-import { MockupError } from "./errors";
+import { getSharp } from "./sharp-client.js";
+import { env } from "../config/env.js";
+import { validateTemplateConfig } from "./config.js";
+import { MockupError } from "./errors.js";
 import {
   REQUIRED_TEMPLATE_FILES,
   type LoadedTemplate,
-} from "./types";
+} from "./types.js";
 
 let templateIndex: Map<string, string> | null = null;
 

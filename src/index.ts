@@ -1,8 +1,10 @@
 import { Elysia } from "elysia";
-import { initLogger } from "evlog";
+import { initLogger, parseError } from "evlog";
 import { evlog } from "evlog/elysia";
-import { env } from "./config/env";
-import { healthRoutes } from "./routes/health";
+import { env } from "./config/env.js";
+import { isMockupError, toErrorResponse } from "./mockup/errors.js";
+import { healthRoutes } from "./routes/health.js";
+import { mockupRoutes } from "./routes/mockups.js";
 
 initLogger({
   env: {
@@ -18,41 +20,41 @@ const app = new Elysia()
     }),
   )
   .get("/", () => "Hello World")
-  .use(healthRoutes);
-// .use(mockupRoutes)
-// .onError(({ error, set, code, log }) => {
-//   if (code === "VALIDATION") {
-//     set.status = 422;
-//     log?.set({ validation: { failed: true } });
-//     return error;
-//   }
+  .use(healthRoutes)
+  .use(mockupRoutes)
+  .onError(({ error, set, code, log }) => {
+    if (code === "VALIDATION") {
+      set.status = 422;
+      log?.set({ validation: { failed: true } });
+      return error;
+    }
 
-//   if (isMockupError(error)) {
-//     set.status = error.status;
-//     log?.set({
-//       error: { code: error.code, message: error.message },
-//     });
-//     return toErrorResponse(error);
-//   }
+    if (isMockupError(error)) {
+      set.status = error.status;
+      log?.set({
+        error: { code: error.code, message: error.message },
+      });
+      return toErrorResponse(error);
+    }
 
-//   const parsed = parseError(error);
-//   set.status = parsed.status ?? 500;
-//   log?.set({
-//     error: {
-//       code: parsed.code,
-//       message: parsed.message,
-//       status: parsed.status,
-//     },
-//   });
+    const parsed = parseError(error);
+    set.status = parsed.status ?? 500;
+    log?.set({
+      error: {
+        code: parsed.code,
+        message: parsed.message,
+        status: parsed.status,
+      },
+    });
 
-//   return {
-//     success: false,
-//     error: parsed.message,
-//     ...(parsed.why ? { why: parsed.why } : {}),
-//     ...(parsed.fix ? { fix: parsed.fix } : {}),
-//     ...(parsed.link ? { link: parsed.link } : {}),
-//   };
-// });
+    return {
+      success: false,
+      error: parsed.message,
+      ...(parsed.why ? { why: parsed.why } : {}),
+      ...(parsed.fix ? { fix: parsed.fix } : {}),
+      ...(parsed.link ? { link: parsed.link } : {}),
+    };
+  });
 
 if (env.isDevelopment) {
   app.listen(env.port);

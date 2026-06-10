@@ -1,14 +1,14 @@
 import { constants } from "node:fs";
 import { access, mkdir, open, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getSharp } from "./sharp-client";
-import { getDebugDir } from "../config/env";
-import { RenderProgress } from "./progress";
-import { MockupError } from "./errors";
-import { applyAlphaMask, luminanceToAlphaMask } from "./mask";
-import { applyOpacity } from "./opacity";
-import { loadTemplate } from "./template";
-import type { LoadedTemplate } from "./types";
+import { getSharp } from "./sharp-client.js";
+import { getDebugDir } from "../config/env.js";
+import { RenderProgress } from "./progress.js";
+import { MockupError } from "./errors.js";
+import { applyAlphaMask, luminanceToAlphaMask } from "./mask.js";
+import { applyOpacity } from "./opacity.js";
+import { loadTemplate } from "./template.js";
+import type { LoadedTemplate } from "./types.js";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 

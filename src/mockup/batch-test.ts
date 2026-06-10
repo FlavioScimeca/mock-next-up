@@ -1,10 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { env } from "../config/env";
-import { MockupError } from "./errors";
-import { withRenderLock } from "./lock";
-import { renderMockup } from "./render";
-import type { RenderResult } from "./types";
+import { env } from "../config/env.js";
+import { MockupError } from "./errors.js";
+import { withRenderLock } from "./lock.js";
+import { renderMockup } from "./render.js";
+import type { RenderResult } from "./types.js";
 
 export async function listDesignPngs(): Promise<string[]> {
   let entries;

@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { env } from "../src/config/env";
-import { withRenderLock } from "../src/mockup/lock";
-import { renderMockup } from "../src/mockup/render";
+import { env } from "../src/config/env.js";
+import { withRenderLock } from "../src/mockup/lock.js";
+import { renderMockup } from "../src/mockup/render.js";
 
 const designPath = join(env.projectRoot, "src/assets/designs/design-01.png");
 const templateId = "generic-hang-white";

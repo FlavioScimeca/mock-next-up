@@ -1,5 +1,5 @@
-import { MockupError } from "./errors";
-import type { TemplateConfig } from "./types";
+import { MockupError } from "./errors.js";
+import type { TemplateConfig } from "./types.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

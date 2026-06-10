@@ -1,6 +1,7 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const projectRoot = join(import.meta.dir, "../..");
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const isVercel = Boolean(process.env.VERCEL);
 
 function resolvePath(value: string | undefined, defaultRelative: string): string {

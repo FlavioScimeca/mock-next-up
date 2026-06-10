@@ -1,4 +1,4 @@
-import { initSharp } from "./sharp-client";
+import { initSharp } from "./sharp-client.js";
 
 let ready: Promise<void> | null = null;
 
