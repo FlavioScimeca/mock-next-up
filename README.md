@@ -59,9 +59,18 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 ### Vercel deployment
 
-Mockup routes are always enabled. Heavy dependencies (`sharp`, render pipeline) load **on first mockup request**, not at server cold start — this avoids Vercel `Cannot access 'default' before initialization` errors.
+Mockup routes are always enabled. Heavy dependencies (`sharp`, render pipeline) load **on first mockup request**, not at server cold start.
 
-On Vercel, writable dirs automatically use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`. Template assets are bundled via [`vercel.json`](vercel.json) `includeFiles`.
+Vercel requires Linux-native sharp binaries. This repo pins:
+
+- `sharp@0.35.0`
+- optional `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64`
+
+[`vercel.json`](vercel.json) copies `node_modules/@img/**`, `node_modules/sharp/**`, and `src/assets/**` into the function bundle via `includeFiles`.
+
+On Vercel, writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
+
+If sharp still fails after deploy, redeploy with a **clean build** (no cached `node_modules`) so Linux optional deps install on Vercel's builders.
 
 ## Development
 
