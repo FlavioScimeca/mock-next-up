@@ -10,48 +10,37 @@ if (process.platform !== "linux") {
 }
 
 const packages = ["sharp-linux-x64", "sharp-libvips-linux-x64"];
-const targetRoot = join(root, "api", "sharp-native");
+const targetRoots = [
+  join(root, "src", "native", "sharp-native"),
+  join(root, "api", "sharp-native"),
+];
 
-if (existsSync(targetRoot)) {
-  rmSync(targetRoot, { recursive: true, force: true });
-}
+for (const targetRoot of targetRoots) {
+  if (existsSync(targetRoot)) {
+    rmSync(targetRoot, { recursive: true, force: true });
+  }
 
-mkdirSync(targetRoot, { recursive: true });
+  mkdirSync(targetRoot, { recursive: true });
 
-for (const name of packages) {
-  const src = join(root, "node_modules", "@img", name);
+  for (const name of packages) {
+    const src = join(root, "node_modules", "@img", name);
 
-  if (!existsSync(src)) {
-    console.error(`postinstall-sharp: missing ${src}`);
+    if (!existsSync(src)) {
+      console.error(`postinstall-sharp: missing ${src}`);
+      process.exit(1);
+    }
+
+    cpSync(src, join(targetRoot, name), { recursive: true });
+  }
+
+  const sharpLibDir = join(targetRoot, "sharp-linux-x64", "lib");
+  const libvipsLibDir = join(targetRoot, "sharp-libvips-linux-x64", "lib");
+  const sharpNode = readdirSync(sharpLibDir).find((name) => name.endsWith(".node"));
+
+  if (!sharpNode || !existsSync(libvipsLibDir)) {
+    console.error(`postinstall-sharp: invalid layout under ${targetRoot}`);
     process.exit(1);
   }
 
-  cpSync(src, join(targetRoot, name), { recursive: true });
-  console.log(`postinstall-sharp: copied ${name} -> api/sharp-native/${name}`);
+  console.log(`postinstall-sharp: ready ${targetRoot}`);
 }
-
-const sharpLibDir = join(targetRoot, "sharp-linux-x64", "lib");
-const libvipsLibDir = join(targetRoot, "sharp-libvips-linux-x64", "lib");
-
-if (!existsSync(sharpLibDir)) {
-  console.error(`postinstall-sharp: missing sharp lib dir ${sharpLibDir}`);
-  process.exit(1);
-}
-
-const sharpNode = readdirSync(sharpLibDir).find((name) => name.endsWith(".node"));
-
-if (!sharpNode) {
-  console.error(
-    `postinstall-sharp: no .node binding in ${sharpLibDir}: ${readdirSync(sharpLibDir).join(", ")}`,
-  );
-  process.exit(1);
-}
-
-if (!existsSync(libvipsLibDir)) {
-  console.error(`postinstall-sharp: missing libvips lib dir ${libvipsLibDir}`);
-  process.exit(1);
-}
-
-console.log(`postinstall-sharp: binding=${join(sharpLibDir, sharpNode)}`);
-console.log(`postinstall-sharp: libvips=${libvipsLibDir}`);
-console.log("postinstall-sharp: ready");

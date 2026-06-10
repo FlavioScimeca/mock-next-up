@@ -61,7 +61,7 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-Vercel’s file tracer **respects `.gitignore`**, so copied binaries under `api/sharp-native/` must **not** be gitignored (that was blocking `includeFiles`).
+Copied binaries under `src/native/` must **not** be gitignored (Vercel’s tracer respects `.gitignore`).
 
 [`vercel.json`](vercel.json):
 
@@ -71,20 +71,15 @@ Vercel’s file tracer **respects `.gitignore`**, so copied binaries under `api/
   "buildCommand": "node scripts/postinstall-sharp.mjs",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "api/sharp-native/**"
+      "includeFiles": "src/native/**"
     }
   }
 }
 ```
 
-[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) runs on **linux** (Vercel builders) and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64` into `api/sharp-native/`.
+[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) copies linux sharp + libvips into `src/native/sharp-native/` (and `api/sharp-native/` as backup). [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads via each package’s `index.cjs` — sharp 0.35 no longer ships a root-level `sharp.node`.
 
-Build log should show:
-
-```txt
-postinstall-sharp: copied sharp-linux-x64 -> api/sharp-native/sharp-linux-x64
-postinstall-sharp: copied sharp-libvips-linux-x64 -> api/sharp-native/sharp-libvips-linux-x64
-```
+[`vercel.json`](vercel.json) uses `includeFiles: "src/native/**"` on `api/index.ts`.
 
 [`src/index.ts`](src/index.ts) is **local dev only** (starts the listener). Production traffic goes through [`api/index.ts`](api/index.ts).
 
@@ -115,7 +110,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | postinstall → `api/sharp-native/**` + `includeFiles` |
+| Vercel | glibc | x64 | postinstall → `src/native/sharp-native/` + `includeFiles` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

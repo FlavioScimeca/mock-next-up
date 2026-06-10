@@ -4,7 +4,7 @@
   "buildCommand": "node scripts/postinstall-sharp.mjs",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "api/sharp-native/**"
+      "includeFiles": "src/native/**"
     }
   },
   "env": {
