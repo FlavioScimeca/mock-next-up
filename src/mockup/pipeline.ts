@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, mkdir, open, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getSharp } from "./sharp-client";
 import { getDebugDir } from "../config/env";
@@ -27,8 +28,10 @@ async function writeDebugImage(
 
 export async function validateDesignIsPng(designPath: string): Promise<void> {
   const sharp = getSharp();
-  const file = Bun.file(designPath);
-  if (!(await file.exists())) {
+
+  try {
+    await access(designPath, constants.F_OK);
+  } catch {
     throw new MockupError(
       "MISSING_DESIGN",
       "design file is required",
@@ -36,7 +39,14 @@ export async function validateDesignIsPng(designPath: string): Promise<void> {
     );
   }
 
-  const header = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  const header = Buffer.alloc(8);
+  const handle = await open(designPath, "r");
+  try {
+    await handle.read(header, 0, 8, 0);
+  } finally {
+    await handle.close();
+  }
+
   const isPng = PNG_SIGNATURE.every((byte, index) => header[index] === byte);
 
   if (!isPng) {

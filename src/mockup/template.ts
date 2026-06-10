@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { getSharp } from "./sharp-client";
 import { env } from "../config/env";
@@ -53,7 +53,7 @@ async function buildTemplateIndex(): Promise<Map<string, string>> {
 
   for (const dir of templateDirs) {
     const configPath = join(dir, "config.json");
-    const raw: unknown = await Bun.file(configPath).json();
+    const raw: unknown = JSON.parse(await readFile(configPath, "utf8"));
 
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       throw new MockupError(
@@ -149,7 +149,7 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
   }
 
   const configPath = join(dir, "config.json");
-  const raw = await Bun.file(configPath).json();
+  const raw = JSON.parse(await readFile(configPath, "utf8"));
   const config = validateTemplateConfig(raw, templateId);
 
   const template: LoadedTemplate = {

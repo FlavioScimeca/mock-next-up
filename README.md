@@ -57,27 +57,30 @@ The same luminance-derived alpha mask is applied to the design, shadow, and high
 
 Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for structured request-wide events. `/health` is excluded from request logging.
 
-### Vercel deployment (Linux x64, serverless)
+### Vercel deployment (Node.js, Linux x64)
 
-Vercel’s function bundle often omits `node_modules/@img/**`, so native `sharp` fails with either `libvips-cpp.so: cannot open shared object file` or missing wasm files (Bun skips `@img/sharp-wasm32` on linux-x64).
-
-**Fix used in this repo:** copy linux-x64 sharp + libvips into `src/vendor/sharp-native/` during the Vercel build, then inject that binding before render.
+Deploy with the **Node.js** runtime (no `bunVersion` in [`vercel.json`](vercel.json)). Local dev can still use Bun.
 
 [`vercel.json`](vercel.json):
 
 ```json
 {
-  "bunVersion": "1.x",
-  "installCommand": "bun install && npm install @img/sharp-linux-x64@0.35.0 @img/sharp-libvips-linux-x64@1.3.0 --no-save --force",
-  "buildCommand": "bun run scripts/prepare-vercel-sharp.ts"
+  "installCommand": "npm install --include=optional",
+  "functions": {
+    "src/index.ts": {
+      "includeFiles": [
+        "node_modules/@img/**",
+        "node_modules/sharp/**",
+        "src/assets/**"
+      ]
+    }
+  }
 }
 ```
 
-[`scripts/prepare-vercel-sharp.ts`](scripts/prepare-vercel-sharp.ts) runs only when `VERCEL=1` and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64` next to your app code so they ship with the function.
+`npm install --include=optional` pulls in `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` on Vercel’s Linux builders. `includeFiles` copies those native binaries (and template PNGs) into the serverless function bundle — without this, sharp fails with missing `libvips-cpp.so`.
 
-[`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads the vendored native binding on Vercel before any render.
-
-Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
+Mockup routes lazy-load sharp on first request. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
 
 ### Linux ARM64 + musl (Alpine, many containers)
 
@@ -104,7 +107,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | `prepare-vercel-sharp.ts` copies `@img/sharp-linux-x64` + libvips into `src/vendor/` |
+| Vercel | glibc | x64 | `npm install --include=optional` + `includeFiles` for `@img/**` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

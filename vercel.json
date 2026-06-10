@@ -1,8 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "bunVersion": "1.x",
-  "installCommand": "bun install && npm install @img/sharp-linux-x64@0.35.0 @img/sharp-libvips-linux-x64@1.3.0 --no-save --force",
-  "buildCommand": "bun run scripts/prepare-vercel-sharp.ts",
+  "installCommand": "npm install --include=optional",
+  "functions": {
+    "src/index.ts": {
+      "includeFiles": [
+        "node_modules/@img/**",
+        "node_modules/sharp/**",
+        "src/assets/**"
+      ]
+    }
+  },
   "env": {
     "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
   }
