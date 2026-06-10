@@ -2,13 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
   "installCommand": "bun install",
-  "functions": {
-    "src/index.ts": {
-      "includeFiles": "{node_modules/@img/**,node_modules/sharp/**,src/assets/**}",
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  },
   "env": {
     "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
   }

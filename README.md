@@ -57,20 +57,49 @@ The same luminance-derived alpha mask is applied to the design, shadow, and high
 
 Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for structured request-wide events. `/health` is excluded from request logging.
 
-### Vercel deployment
+### Vercel deployment (Linux x64, glibc)
 
-Mockup routes are always enabled. Heavy dependencies (`sharp`, render pipeline) load **on first mockup request**, not at server cold start.
+This project uses the Elysia + Bun entry in [`src/index.ts`](src/index.ts) (`export default app` / `export const GET = app.handle`). It is **not** an `api/` folder serverless layout, so do not add a `functions` block pointing at `src/index.ts` in [`vercel.json`](vercel.json) — Vercel will error with *pattern doesn't match any Serverless Functions inside the `api` directory*.
 
-Vercel requires Linux-native sharp binaries. This repo pins:
+Minimal [`vercel.json`](vercel.json):
 
-- `sharp@0.35.0`
-- optional `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64`
+```json
+{
+  "bunVersion": "1.x",
+  "installCommand": "bun install"
+}
+```
 
-[`vercel.json`](vercel.json) copies `node_modules/@img/**`, `node_modules/sharp/**`, and `src/assets/**` into the function bundle via `includeFiles`.
+For `sharp` on Vercel, optional `@img/sharp-linux-x64` packages are listed in [`package.json`](package.json). Writable dirs on Vercel use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads` automatically when `VERCEL=1`.
 
-On Vercel, writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
+### Linux ARM64 + musl (Alpine, many containers)
 
-If sharp still fails after deploy, redeploy with a **clean build** (no cached `node_modules`) so Linux optional deps install on Vercel's builders.
+If you deploy to **linux arm64 with musl** (e.g. Alpine-based machines), install the matching sharp binaries at build time. See [sharp cross-platform install](https://sharp.pixelplumbing.com/install/#cross-platform).
+
+**buildspec / CI example** (after `npm install`):
+
+```bash
+npm install --cpu=arm64 --os=linux --libc=musl sharp
+```
+
+Or use the npm script:
+
+```bash
+npm run install:sharp:linux-arm64-musl
+```
+
+Pinned optional packages for that target:
+
+- `@img/sharp-linuxmusl-arm64@0.35.0`
+- `@img/sharp-libvips-linuxmusl-arm64@1.3.0`
+
+Build on the same OS/arch as production (or use the flags above). Do not rely on macOS `node_modules` on Linux arm64.
+
+| Deploy target | libc | CPU | sharp install flags |
+|---------------|------|-----|---------------------|
+| Vercel | glibc | x64 | default on Vercel builders |
+| Alpine / musl container | musl | arm64 | `--cpu=arm64 --os=linux --libc=musl` |
+| Debian/Ubuntu container | glibc | arm64 | `--cpu=arm64 --os=linux --libc=glibc` |
 
 ## Development
 
