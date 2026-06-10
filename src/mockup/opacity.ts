@@ -1,4 +1,4 @@
-import { getSharp } from "./sharp-client.js";
+import { getSharp } from "../platform/sharp/client.js";
 
 export async function applyOpacity(
   input: Buffer | string,

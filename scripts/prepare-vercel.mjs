@@ -66,8 +66,8 @@ if (!existsSync(templateConfig)) {
   process.exit(1);
 }
 
-const bindingModule = join(root, "src", "mockup", "sharp-vercel-binding.cjs");
-const assetsModule = join(root, "src", "mockup", "sharp-vercel-assets.cjs");
+const bindingModule = join(root, "src", "platform", "sharp", "vercel-binding.cjs");
+const assetsModule = join(root, "src", "platform", "sharp", "vercel-assets.cjs");
 
 writeFileSync(
   bindingModule,
@@ -75,7 +75,7 @@ writeFileSync(
 const { join } = require("path");
 const { existsSync, readFileSync } = require("fs");
 
-const libDir = join(__dirname, "../../api/vendor/sharp-wasm32/lib");
+const libDir = join(__dirname, "../../../api/vendor/sharp-wasm32/lib");
 const wasmBinaryPath = join(libDir, ${JSON.stringify(wasmBinary)});
 const wasmLoaderPath = join(libDir, ${JSON.stringify(wasmLoader)});
 
@@ -94,7 +94,7 @@ writeFileSync(
 const { join } = require("path");
 const { existsSync, readFileSync } = require("fs");
 
-const assetsRoot = join(__dirname, "../../api/vendor/assets");
+const assetsRoot = join(__dirname, "../../../api/vendor/assets");
 const templateConfig = join(assetsRoot, "templates/t-shirt/hang/white/v1/config.json");
 const sampleDesign = join(assetsRoot, "designs/design-01.png");
 

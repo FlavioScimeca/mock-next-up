@@ -3,57 +3,24 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Elysia, t } from "elysia";
 import { env } from "../config/env.js";
+import { isPngBuffer } from "../lib/png.js";
 import { setRequestLog } from "../logging.js";
+import { renderTestMockups } from "../mockup/batch-test.js";
 import {
   getErrorStatus,
   MockupError,
   toErrorResponse,
 } from "../mockup/errors.js";
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-
-type RenderDeps = {
-  renderMockup: typeof import("../mockup/render.js").renderMockup;
-  withRenderLock: typeof import("../mockup/lock.js").withRenderLock;
-  renderTestMockups: typeof import("../mockup/batch-test.js").renderTestMockups;
-};
-
-let renderDepsPromise: Promise<RenderDeps> | null = null;
-
-function loadRenderDeps(): Promise<RenderDeps> {
-  if (!renderDepsPromise) {
-    renderDepsPromise = import("../mockup/sharp-init.js")
-      .then(({ ensureSharpReady }) => ensureSharpReady())
-      .then(() =>
-        Promise.all([
-          import("../mockup/render.js"),
-          import("../mockup/lock.js"),
-          import("../mockup/batch-test.js"),
-        ]),
-      )
-      .then(([render, lock, batch]) => ({
-        renderMockup: render.renderMockup,
-        withRenderLock: lock.withRenderLock,
-        renderTestMockups: batch.renderTestMockups,
-      }));
-  }
-
-  return renderDepsPromise;
-}
-
-function isPngBuffer(buffer: Buffer): boolean {
-  if (buffer.length < 8) {
-    return false;
-  }
-
-  return PNG_SIGNATURE.every((byte, index) => buffer[index] === byte);
-}
+import { withRenderLock } from "../mockup/lock.js";
+import { renderMockup } from "../mockup/render.js";
+import { ensureSharpReady } from "../platform/sharp/client.js";
 
 export const mockupRoutes = new Elysia()
   .post(
     "/mockups/render",
     async ({ body, set }) => {
-      const { renderMockup, withRenderLock } = await loadRenderDeps();
+      await ensureSharpReady();
+
       const templateId = body.templateId?.trim();
 
       setRequestLog({ mockup: { route: "render", templateId } });
@@ -146,7 +113,8 @@ export const mockupRoutes = new Elysia()
   .post(
     "/mockups/test",
     async ({ body, query, set }) => {
-      const { renderTestMockups } = await loadRenderDeps();
+      await ensureSharpReady();
+
       const templateId = body?.templateId ?? query.templateId;
       const debug = parseDebugFlag(body?.debug ?? query.debug);
 

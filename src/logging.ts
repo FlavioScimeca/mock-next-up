@@ -7,7 +7,3 @@ export function setRequestLog(fields: Record<string, unknown>): void {
     // Outside an HTTP request (e.g. scripts/render-test.ts).
   }
 }
-
-export function logRenderEvent(fields: Record<string, unknown>): void {
-  setRequestLog({ render: fields });
-}

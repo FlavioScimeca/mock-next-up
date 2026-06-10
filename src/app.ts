@@ -1,8 +1,9 @@
 import { Elysia } from "elysia";
+import { node } from "@elysiajs/node";
 import { initLogger, parseError } from "evlog";
 import { evlog } from "evlog/elysia";
-import "./mockup/sharp-vercel-binding.cjs";
-import "./mockup/sharp-vercel-assets.cjs";
+import "./platform/sharp/vercel-binding.cjs";
+import "./platform/sharp/vercel-assets.cjs";
 import { env } from "./config/env.js";
 import { isMockupError, toErrorResponse } from "./mockup/errors.js";
 import { healthRoutes } from "./routes/health.js";
@@ -15,7 +16,7 @@ initLogger({
   },
 });
 
-const app = new Elysia()
+const app = new Elysia(env.isVercel ? undefined : { adapter: node() })
   .use(
     evlog({
       exclude: ["/health"],
