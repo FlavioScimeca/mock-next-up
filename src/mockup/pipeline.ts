@@ -1,16 +1,14 @@
 import { constants } from "node:fs";
 import { access, mkdir, open, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getSharp } from "./sharp-client.js";
+import { getSharp } from "../platform/sharp/client.js";
 import { getDebugDir } from "../config/env.js";
+import { isPngHeader } from "../lib/png.js";
 import { RenderProgress } from "./progress.js";
 import { MockupError } from "./errors.js";
 import { applyAlphaMask, luminanceToAlphaMask } from "./mask.js";
 import { applyOpacity } from "./opacity.js";
-import { loadTemplate } from "./template.js";
 import type { LoadedTemplate } from "./types.js";
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 async function writeDebugImage(
   debug: boolean,
@@ -47,7 +45,7 @@ export async function validateDesignIsPng(designPath: string): Promise<void> {
     await handle.close();
   }
 
-  const isPng = PNG_SIGNATURE.every((byte, index) => header[index] === byte);
+  const isPng = isPngHeader(header);
 
   if (!isPng) {
     throw new MockupError(

@@ -1,11 +1,12 @@
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type Sharp from "sharp";
-import { env } from "../config/env.js";
+import { env } from "../../config/env.js";
 
 const require = createRequire(import.meta.url);
 
 let sharpModule: typeof Sharp | null = null;
+let ready: Promise<void> | null = null;
 
 function patchSharpBindingModule(binding: unknown): void {
   const sharpEntry = require.resolve("sharp");
@@ -22,7 +23,7 @@ function patchSharpBindingModule(binding: unknown): void {
 }
 
 function initVercelSharp(): void {
-  const binding = require("./sharp-vercel-binding.cjs");
+  const binding = require("./vercel-binding.cjs");
 
   if (!binding) {
     throw new Error(
@@ -34,7 +35,7 @@ function initVercelSharp(): void {
   sharpModule = require("sharp") as typeof Sharp;
 }
 
-export function initSharp(): void {
+function initSharp(): void {
   if (sharpModule) {
     return;
   }
@@ -45,6 +46,16 @@ export function initSharp(): void {
   }
 
   sharpModule = require("sharp") as typeof Sharp;
+}
+
+export function ensureSharpReady(): Promise<void> {
+  if (!ready) {
+    ready = Promise.resolve().then(() => {
+      initSharp();
+    });
+  }
+
+  return ready;
 }
 
 export function getSharp(): typeof Sharp {

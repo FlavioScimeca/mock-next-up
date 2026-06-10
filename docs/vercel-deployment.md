@@ -1,13 +1,13 @@
 # Vercel Deployment Guide
 
-This document explains the problems we hit deploying **mock-next-up** to Vercel, why local development (Bun) behaves differently from production (Node.js), and how the final solution works.
+This document explains the problems we hit deploying **mock-next-up** to Vercel and how the final solution works. The app runs on **Node.js ≥ 20** everywhere; Vercel uses WebAssembly Sharp while local dev uses the native OS binary.
 
 ---
 
 ## Table of contents
 
 1. [Executive summary](#executive-summary)
-2. [Runtime split: Bun locally, Node.js on Vercel](#runtime-split-bun-locally-nodejs-on-vercel)
+2. [Runtime: Node.js everywhere](#runtime-nodejs-everywhere)
 3. [Problem 1: Sharp native binaries do not survive bundling](#problem-1-sharp-native-binaries-do-not-survive-bundling)
 4. [Problem 2: Mockup assets were not shipped to the function](#problem-2-mockup-assets-were-not-shipped-to-the-function)
 5. [Other issues encountered along the way](#other-issues-encountered-along-the-way)
@@ -25,7 +25,12 @@ This document explains the problems we hit deploying **mock-next-up** to Vercel,
 
 **mock-next-up** is a server-side POD mockup renderer: it composites template PNGs (base, mask, shadow, highlight) with an uploaded design using [Sharp](https://sharp.pixelplumbing.com/).
 
-Local development uses **Bun** with native Sharp binaries. **Vercel production uses Node.js** serverless functions — not Bun.
+Local development and Vercel both use **Node.js** serverless functions. Sharp backend differs by environment:
+
+| Environment | Runtime | Entry point | Package manager | Sharp backend |
+|-------------|---------|-------------|-----------------|---------------|
+| **Local dev** | Node.js ≥ 20 | `src/index.ts` | npm (`npm install`, `npm run dev`) | Native OS binary (e.g. darwin arm64) |
+| **Vercel** | Node.js ≥ 20 | `api/index.ts` | npm (`npm install --include=optional`) | WebAssembly (`@img/sharp-wasm32`) |
 
 Two independent blockers had to be solved:
 
@@ -38,30 +43,26 @@ The working pattern: **vendor everything the function needs under `api/vendor/`*
 
 ---
 
-## Runtime split: Bun locally, Node.js on Vercel
+## Runtime: Node.js everywhere
 
-This project intentionally uses **two runtimes**:
+This project uses **Node.js ≥ 20** for local development and Vercel production.
 
 | Environment | Runtime | Entry point | Package manager | Sharp backend |
 |-------------|---------|-------------|-----------------|---------------|
-| **Local dev** | Bun | `src/index.ts` | Bun (`bun install`, `bun run dev`) | Native OS binary (e.g. darwin arm64) |
+| **Local dev** | Node.js ≥ 20 | `src/index.ts` | npm (`npm install`, `npm run dev`) | Native OS binary (e.g. darwin arm64) |
 | **Vercel** | Node.js ≥ 20 | `api/index.ts` | npm (`npm install --include=optional`) | WebAssembly (`@img/sharp-wasm32`) |
 
-### Why not Bun on Vercel?
+Dev runs via **tsx** (`npm run dev`).
 
-Vercel supports Bun, but this app relies on Sharp — a native addon with platform-specific binaries and complex bundling requirements. On Vercel we needed:
+### Why WebAssembly Sharp on Vercel only?
 
-- Predictable `require()` / `createRequire()` for binding injection
-- Explicit control over which `.wasm` / `.node.js` files are traced into the bundle
-- npm’s optional dependency resolution for `@img/*` packages on Linux
+Sharp native Linux binaries are often dropped by Vercel bundler. Locally, npm installs the correct native `@img/sharp-*` package. On Vercel we use wasm binding injection and `includeFiles` for `api/vendor/**`.
 
-The Node.js path is well-understood for Sharp-on-serverless. Bun remains the better local DX (fast watch mode, native Sharp on macOS).
-
-### How the split is wired
+### How local and Vercel are wired
 
 ```
 Local:
-  src/index.ts  →  src/app.ts  →  routes + mockup pipeline
+  npm run dev  →  src/index.ts  →  src/app.ts  →  routes + mockup pipeline
 
 Vercel:
   api/index.ts  →  re-exports src/app.ts  →  same routes + pipeline
@@ -73,12 +74,12 @@ Vercel:
 export { default, GET, POST, PATCH, DELETE, PUT, type API } from "../src/app.js";
 ```
 
-Vercel treats files under `api/` as **serverless functions**. There is no `bunVersion` in `vercel.json`, so the default **Node.js** runtime applies.
+Vercel treats files under `api/` as **serverless functions**. The default **Node.js** runtime applies.
 
-`src/index.ts` only starts the HTTP listener in development — it is **not** the Vercel entry:
+`src/index.ts` starts the HTTP listener when **not** on Vercel:
 
 ```typescript
-if (env.isDevelopment) {
+if (!env.isVercel) {
   app.listen(env.port);
 }
 ```
@@ -131,17 +132,17 @@ On Linux (Vercel’s build environment and runtime), we:
 
 1. Install `@img/sharp-wasm32@0.35.0` (pinned to match `sharp@0.35.0`)
 2. Copy the wasm package to `api/vendor/sharp-wasm32/`
-3. Generate `src/mockup/sharp-vercel-binding.cjs` that:
+3. Generate `src/platform/sharp/vercel-binding.cjs` that:
    - `readFileSync()` the `.node.wasm` file (forces the bundler to include it)
    - `require()` the `.node.js` loader
    - exports the binding module
 4. At runtime, **patch** Sharp’s internal `sharp.cjs` cache with that binding, then `require("sharp")`
 
-Relevant code in `src/mockup/sharp-client.ts`:
+Relevant code in `src/platform/sharp/client.ts`:
 
 ```typescript
 function initVercelSharp(): void {
-  const binding = require("./sharp-vercel-binding.cjs");
+  const binding = require("./vercel-binding.cjs");
   patchSharpBindingModule(binding);
   sharpModule = require("sharp") as typeof Sharp;
 }
@@ -149,7 +150,7 @@ function initVercelSharp(): void {
 
 `patchSharpBindingModule` replaces the exports of `sharp/dist/sharp.cjs` in `require.cache` so Sharp loads wasm instead of searching for a missing native linux binding.
 
-Locally (non-Vercel), `initSharp()` skips this and uses the normal native Sharp binary:
+Locally (non-Vercel), `initSharp()` skips wasm and uses the normal native Sharp binary:
 
 ```typescript
 if (env.isVercel) {
@@ -254,11 +255,11 @@ Because `api/vendor/` sits next to the serverless entry, Vercel consistently shi
 `src/app.ts` imports a generated CommonJS module so the bundler sees static file references:
 
 ```typescript
-import "./mockup/sharp-vercel-binding.cjs";
-import "./mockup/sharp-vercel-assets.cjs";
+import "./platform/sharp/vercel-binding.cjs";
+import "./platform/sharp/vercel-assets.cjs";
 ```
 
-`sharp-vercel-assets.cjs` (generated on Linux) calls `readFileSync()` on a template config and a sample design PNG. That complements `includeFiles` by giving the tracer concrete file paths.
+`vercel-assets.cjs` (generated on Linux) calls `readFileSync()` on a template config and a sample design PNG. That complements `includeFiles` by giving the tracer concrete file paths.
 
 ---
 
@@ -266,7 +267,7 @@ import "./mockup/sharp-vercel-assets.cjs";
 
 ### ESM on Node / Vercel
 
-The project uses `"type": "module"`. Relative imports must include `.js` extensions (TypeScript `moduleResolution: "NodeNext"`). We replaced Bun-specific `import.meta.dir` with `fileURLToPath(import.meta.url)`.
+The project uses `"type": "module"`. Relative imports must include `.js` extensions (TypeScript `moduleResolution: "NodeNext"`). Paths use `fileURLToPath(import.meta.url)`.
 
 ### Writable directories on Vercel
 
@@ -287,8 +288,8 @@ Post-install copies (`api/vendor/`, generated `.cjs` stubs) must **not** be giti
 
 `prepare-vercel.mjs` runs only on **Linux** (`process.platform !== "linux"` → exit 0). On macOS:
 
-- `sharp-vercel-binding.cjs` exports `null` (never loaded — native Sharp used)
-- `sharp-vercel-assets.cjs` exports `null` (import is harmless)
+- `vercel-binding.cjs` exports `null` (never loaded — native Sharp used)
+- `vercel-assets.cjs` exports `null` (import is harmless)
 
 Local dev is unaffected.
 
@@ -298,9 +299,9 @@ Local dev is unaffected.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        LOCAL (Bun)                              │
+│                        LOCAL (Node.js + tsx)                    │
 ├─────────────────────────────────────────────────────────────────┤
-│  bun run dev  →  src/index.ts  →  src/app.ts                    │
+│  npm run dev  →  src/index.ts  →  src/app.ts                    │
 │  Sharp: native darwin binary                                    │
 │  Assets: src/assets/templates, src/assets/designs               │
 │  Writes: outputs/, uploads/                                     │
@@ -316,7 +317,7 @@ Local dev is unaffected.
 │    node scripts/prepare-vercel.mjs                              │
 │      ├── copy @img/sharp-wasm32 → api/vendor/sharp-wasm32/      │
 │      ├── copy src/assets        → api/vendor/assets/            │
-│      └── generate sharp-vercel-{binding,assets}.cjs             │
+│      └── generate vercel-{binding,assets}.cjs in src/platform/sharp/ │
 │                                                                 │
 │  Bundle: includeFiles api/vendor/**                             │
 │                                                                 │
@@ -345,8 +346,8 @@ Steps (Linux only):
 3. Copy `src/assets` → `api/vendor/assets/`
 4. Validate wasm layout (`*.node.js` loader + `*.node.wasm` binary)
 5. Validate required assets (designs dir, template `config.json`)
-6. Write `src/mockup/sharp-vercel-binding.cjs` with absolute-relative paths to wasm under `api/vendor/`
-7. Write `src/mockup/sharp-vercel-assets.cjs` with `readFileSync` on template + sample design
+6. Write `src/platform/sharp/vercel-binding.cjs` with paths to wasm under `api/vendor/`
+7. Write `src/platform/sharp/vercel-assets.cjs` with `readFileSync` on template + sample design
 
 Locally on macOS, the script prints `prepare-vercel: skipped (not linux)` and exits — no vendor directory created.
 
@@ -421,9 +422,9 @@ templateDir: api/vendor/assets/templates/t-shirt/hang/white/v1
 | [`api/index.ts`](../api/index.ts) | Vercel serverless entry (re-exports app) |
 | [`src/app.ts`](../src/app.ts) | Elysia app, imports binding/asset sidecars |
 | [`src/config/env.ts`](../src/config/env.ts) | Path resolution, `/tmp` on Vercel |
-| [`src/mockup/sharp-client.ts`](../src/mockup/sharp-client.ts) | Native vs wasm Sharp initialization |
-| [`src/mockup/sharp-vercel-binding.cjs`](../src/mockup/sharp-vercel-binding.cjs) | Generated wasm loader (Linux build) |
-| [`src/mockup/sharp-vercel-assets.cjs`](../src/mockup/sharp-vercel-assets.cjs) | Generated asset tracer (Linux build) |
+| [`src/platform/sharp/client.ts`](../src/platform/sharp/client.ts) | Native vs wasm Sharp initialization |
+| [`src/platform/sharp/vercel-binding.cjs`](../src/platform/sharp/vercel-binding.cjs) | Generated wasm loader (Linux build) |
+| [`src/platform/sharp/vercel-assets.cjs`](../src/platform/sharp/vercel-assets.cjs) | Generated asset tracer (Linux build) |
 | [`scripts/prepare-vercel.mjs`](../scripts/prepare-vercel.mjs) | Linux build: vendor wasm + assets |
 
 ### Dependencies (Sharp)
@@ -450,7 +451,7 @@ Wasm is used on Vercel. Optional native linux packages remain for non-Vercel Lin
 | **Wasm vs native** | Wasm Sharp works everywhere but is slower than libvips-native |
 | **Ephemeral `/tmp`** | Outputs disappear after the function instance recycles; use `/mockups/render` response body or external storage for production |
 | **`/mockups/test` on Vercel** | Good smoke test; bundles all designs (~20MB+ if large PNGs) into the function |
-| **Dual runtime** | Test local with Bun; verify production behavior on Vercel — subtle `require`/ESM differences possible |
+| **Same runtime** | Local and Vercel both use Node.js; only Sharp backend differs (native vs wasm) |
 | **Build platform** | `prepare-vercel.mjs` must run on **Linux** (Vercel builder satisfies this) |
 | **Node engine** | `"engines": { "node": ">=20.9.0" }` in `package.json` |
 
@@ -497,7 +498,7 @@ Does not require `designs/` on disk — only templates must be bundled.
 | `Designs directory not found: /var/task/src/assets/...` | Old env or missing vendor assets | `TEMPLATES_DIR` / `DESIGNS_DIR` should point to `api/vendor/assets/...` |
 | `Missing mockup asset at ...` | Assets not copied or incomplete git checkout | `src/assets/` present in repo; build log shows `prepare-vercel: assets=...` |
 | Renders succeed but no persistent files | Expected on Vercel | `/tmp` is ephemeral; return PNG in HTTP response instead |
-| Works on Vercel, fails locally | Unlikely if stubs intact | Local uses `src/assets/` defaults; run `bun run dev` |
+| Works on Vercel, fails locally | Unlikely if stubs intact | Local uses `src/assets/` defaults; run `npm run dev` |
 
 ### Useful build log lines
 
@@ -513,6 +514,6 @@ If you see `prepare-vercel: skipped (not linux)` **on Vercel**, something is wro
 
 ## Summary
 
-Deploying a Sharp-based image pipeline to Vercel required accepting **Node.js in production** while keeping **Bun for local dev**, switching Sharp to **WebAssembly on Vercel**, and **vendoring all runtime files under `api/vendor/`** so the serverless bundler actually ships them.
+Deploying a Sharp-based image pipeline to Vercel required switching Sharp to **WebAssembly on Vercel** (native Sharp locally), and **vendoring all runtime files under `api/vendor/`** so the serverless bundler actually ships them.
 
-The failures were not application logic bugs — they were **packaging and runtime environment** mismatches between a filesystem-heavy Bun app and Vercel’s constrained Node.js function sandbox.
+The failures were not application logic bugs — they were **packaging and runtime environment** mismatches in Vercel’s constrained Node.js function sandbox.

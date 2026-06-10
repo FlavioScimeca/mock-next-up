@@ -1,6 +1,6 @@
 # POD Mockup Renderer
 
-Lightweight server-side print-on-demand mockup generator using Bun, ElysiaJS, TypeScript, and Sharp. Templates are prepared manually in Photoshop; runtime compositing uses filesystem PNG assets only — no browser, PSD parsing, or displacement maps in the MVP.
+Lightweight server-side print-on-demand mockup generator using Node.js, ElysiaJS, TypeScript, and Sharp. Templates are prepared manually in Photoshop; runtime compositing uses filesystem PNG assets only — no browser, PSD parsing, or displacement maps in the MVP.
 
 ## How Templates Work
 
@@ -57,30 +57,30 @@ The same luminance-derived alpha mask is applied to the design, shadow, and high
 
 Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for structured request-wide events. `/health` is excluded from request logging.
 
-### Vercel deployment (Node.js, WebAssembly sharp)
+### Vercel deployment (WebAssembly sharp)
 
-Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
+The app runs on **Node.js ≥ 20** locally and on Vercel. On Vercel, Sharp uses WebAssembly; locally it uses the native OS binary.
 
-See **[docs/vercel-deployment.md](docs/vercel-deployment.md)** for the full write-up: Sharp wasm bundling, `api/vendor/` assets, Bun vs Node split, errors we hit, and troubleshooting.
+See **[docs/vercel-deployment.md](docs/vercel-deployment.md)** for the full write-up: Sharp wasm bundling, `api/vendor/` assets, errors we hit, and troubleshooting.
 
-[`src/index.ts`](src/index.ts) is **local dev only** (starts the listener). Production traffic goes through [`api/index.ts`](api/index.ts).
+[`src/index.ts`](src/index.ts) starts the HTTP listener when not on Vercel. Production traffic on Vercel goes through [`api/index.ts`](api/index.ts).
 
-Mockup routes lazy-load sharp on first request. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
+Mockup routes initialize Sharp on first mockup request. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads` on Vercel.
 
 ### Linux ARM64 + musl (Alpine, many containers)
 
-If you deploy to **linux arm64 with musl** (e.g. Alpine-based machines), install the matching sharp binaries at build time. See [sharp cross-platform install](https://sharp.pixelplumbing.com/install/#cross-platform) (Bun is supported: `bun add sharp`).
+If you deploy to **linux arm64 with musl** (e.g. Alpine-based machines), install the matching sharp binaries at build time. See [sharp cross-platform install](https://sharp.pixelplumbing.com/install/#cross-platform).
 
-**buildspec / CI example** (after `bun install`):
+**buildspec / CI example** (after `npm install`):
 
 ```bash
-bun add --cpu=arm64 --os=linux --optional @img/sharp-linuxmusl-arm64@0.35.0 @img/sharp-libvips-linuxmusl-arm64@1.3.0
+npm run install:sharp:linux-arm64-musl
 ```
 
-Or use the Bun script:
+Or install directly:
 
 ```bash
-bun run install:sharp:linux-arm64-musl
+npm install --no-save --include=optional @img/sharp-linuxmusl-arm64@0.35.0 @img/sharp-libvips-linuxmusl-arm64@1.3.0
 ```
 
 Pinned optional packages for that target (already in [`package.json`](package.json)):
@@ -90,24 +90,26 @@ Pinned optional packages for that target (already in [`package.json`](package.js
 
 Build on the same OS/arch as production, or run the command above on your CI agent. Do not copy macOS `node_modules` onto Linux arm64.
 
-| Deploy target | libc | CPU | Bun install |
+| Deploy target | libc | CPU | Sharp setup |
 |---------------|------|-----|-------------|
-| Vercel | serverless x64 | x64 | `@img/sharp-wasm32` + `sharp-vercel-binding.cjs` trace |
-| Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
-| Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
+| Vercel | serverless x64 | x64 | `@img/sharp-wasm32` + `vercel-binding.cjs` trace |
+| Alpine / musl container | musl | arm64 | `npm run install:sharp:linux-arm64-musl` |
+| Debian/Ubuntu container | glibc | arm64 | `npm install --include=optional` on target platform |
 
 ## Development
+
+Requires **Node.js ≥ 20.9.0**. Local HTTP uses `@elysiajs/node`; Vercel uses the default Web Standard adapter via `api/index.ts`.
 
 Install dependencies:
 
 ```bash
-bun install
+npm install
 ```
 
 Start the dev server with file watching:
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 Health check:
@@ -121,7 +123,7 @@ curl http://localhost:3000/health
 Runs the renderer directly against a local design file with debug intermediates:
 
 ```bash
-bun run render:test
+npm run render:test
 ```
 
 Outputs:
@@ -156,7 +158,7 @@ Pass `debug: true` to `renderMockup()` to write pipeline intermediates into `out
 ## Type Checking
 
 ```bash
-bun run typecheck
+npm run typecheck
 ```
 
 ## Current Limitations

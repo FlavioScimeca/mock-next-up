@@ -5,7 +5,7 @@ import { MockupError } from "./errors.js";
 import { generateOutputFilename } from "./filenames.js";
 import { runRenderPipeline } from "./pipeline.js";
 import { RenderProgress } from "./progress.js";
-import { ensureSharpReady } from "./sharp-init.js";
+import { ensureSharpReady } from "../platform/sharp/client.js";
 import { loadTemplate } from "./template.js";
 import type { RenderOptions, RenderResult } from "./types.js";
 
