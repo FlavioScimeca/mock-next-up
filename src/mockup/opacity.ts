@@ -1,9 +1,10 @@
-import sharp from "sharp";
+import { getSharp } from "./sharp-client";
 
 export async function applyOpacity(
   input: Buffer | string,
   opacity: number,
 ): Promise<Buffer> {
+  const sharp = getSharp();
   const { data, info } = await sharp(input)
     .ensureAlpha()
     .raw()

@@ -57,24 +57,24 @@ The same luminance-derived alpha mask is applied to the design, shadow, and high
 
 Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for structured request-wide events. `/health` is excluded from request logging.
 
-### Vercel deployment (Linux x64, glibc)
+### Vercel deployment (Linux x64, serverless)
 
-This project uses the Elysia + Bun entry in [`src/index.ts`](src/index.ts) (`export default app` / `export const GET = app.handle`). It is **not** an `api/` folder serverless layout, so do not add a `functions` block pointing at `src/index.ts` in [`vercel.json`](vercel.json) — Vercel will error with *pattern doesn't match any Serverless Functions inside the `api` directory*.
+Vercel bundles your app **without** native `libvips-cpp.so` files, so linux-x64 `sharp` fails at runtime even when install succeeds ([common Vercel sharp issue](https://community.vercel.com/t/help-adding-sharp-to-serverless-function/6069)).
 
-Minimal [`vercel.json`](vercel.json):
+**Fix used in this repo:** WebAssembly sharp on Vercel only.
+
+[`vercel.json`](vercel.json):
 
 ```json
 {
   "bunVersion": "1.x",
-  "installCommand": "bun install && bun add --cpu=x64 --os=linux sharp"
+  "installCommand": "bun install && bun add @img/sharp-wasm32@0.35.0"
 }
 ```
 
-This mirrors the [Vercel community sharp fix](https://community.vercel.com/t/help-adding-sharp-to-serverless-function/6069): force **linux x64** native binaries at install time on Vercel's builders (their example used `npm install --arch=x64 --platform=linux sharp`).
+[`src/mockup/sharp-init.ts`](src/mockup/sharp-init.ts) and [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) inject the wasm binding before any render code runs. Sharp’s loader always tries native linux-x64 first on Vercel, which fails when libvips `.so` files are missing from the bundle.
 
-Do **not** use `install:sharp:linux-arm64-musl` on Vercel — that target is for Alpine ARM64 servers, not Vercel.
-
-Optional `@img/sharp-linux-x64` packages are also listed in [`package.json`](package.json). Writable dirs on Vercel use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads` when `VERCEL=1`.
+Wasm is slower than native but works reliably on serverless. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
 
 ### Linux ARM64 + musl (Alpine, many containers)
 
@@ -101,7 +101,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | `vercel.json` → `bun install && bun add --cpu=x64 --os=linux sharp` |
+| Vercel | serverless x64 | x64 | `@img/sharp-wasm32` via [`vercel.json`](vercel.json) `installCommand` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

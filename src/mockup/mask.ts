@@ -1,6 +1,7 @@
-import sharp from "sharp";
+import { getSharp } from "./sharp-client";
 
 export async function luminanceToAlphaMask(maskPath: string): Promise<Buffer> {
+  const sharp = getSharp();
   const { data, info } = await sharp(maskPath)
     .ensureAlpha()
     .raw()
@@ -33,6 +34,7 @@ export async function applyAlphaMask(
   layer: Buffer,
   alphaMask: Buffer,
 ): Promise<Buffer> {
+  const sharp = getSharp();
   const layerResult = await sharp(layer)
     .ensureAlpha()
     .raw()

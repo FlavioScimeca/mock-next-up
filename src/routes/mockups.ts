@@ -22,15 +22,20 @@ let renderDepsPromise: Promise<RenderDeps> | null = null;
 
 function loadRenderDeps(): Promise<RenderDeps> {
   if (!renderDepsPromise) {
-    renderDepsPromise = Promise.all([
-      import("../mockup/render"),
-      import("../mockup/lock"),
-      import("../mockup/batch-test"),
-    ]).then(([render, lock, batch]) => ({
-      renderMockup: render.renderMockup,
-      withRenderLock: lock.withRenderLock,
-      renderTestMockups: batch.renderTestMockups,
-    }));
+    renderDepsPromise = import("../mockup/sharp-init")
+      .then(({ ensureSharpReady }) => ensureSharpReady())
+      .then(() =>
+        Promise.all([
+          import("../mockup/render"),
+          import("../mockup/lock"),
+          import("../mockup/batch-test"),
+        ]),
+      )
+      .then(([render, lock, batch]) => ({
+        renderMockup: render.renderMockup,
+        withRenderLock: lock.withRenderLock,
+        renderTestMockups: batch.renderTestMockups,
+      }));
   }
 
   return renderDepsPromise;

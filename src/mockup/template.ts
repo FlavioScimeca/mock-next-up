@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import sharp from "sharp";
+import { getSharp } from "./sharp-client";
 import { env } from "../config/env";
 import { validateTemplateConfig } from "./config";
 import { MockupError } from "./errors";
@@ -98,6 +98,7 @@ async function getTemplateIndex(): Promise<Map<string, string>> {
 async function validateAssetDimensions(
   template: LoadedTemplate,
 ): Promise<void> {
+  const sharp = getSharp();
   const { canvas } = template.config;
   const assets = [
     ["base.png", template.paths.base],

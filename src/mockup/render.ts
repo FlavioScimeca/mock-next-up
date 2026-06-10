@@ -5,10 +5,12 @@ import { MockupError } from "./errors";
 import { generateOutputFilename } from "./filenames";
 import { runRenderPipeline } from "./pipeline";
 import { RenderProgress } from "./progress";
+import { ensureSharpReady } from "./sharp-init";
 import { loadTemplate } from "./template";
 import type { RenderOptions, RenderResult } from "./types";
 
 export async function renderMockup(options: RenderOptions): Promise<RenderResult> {
+  await ensureSharpReady();
   const { templateId, designPath, debug = false } = options;
   const startedAt = Date.now();
   const progress = new RenderProgress();

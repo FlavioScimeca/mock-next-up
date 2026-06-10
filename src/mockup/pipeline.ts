@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import sharp from "sharp";
+import { getSharp } from "./sharp-client";
 import { getDebugDir } from "../config/env";
 import { RenderProgress } from "./progress";
 import { MockupError } from "./errors";
@@ -26,6 +26,7 @@ async function writeDebugImage(
 }
 
 export async function validateDesignIsPng(designPath: string): Promise<void> {
+  const sharp = getSharp();
   const file = Bun.file(designPath);
   if (!(await file.exists())) {
     throw new MockupError(
@@ -85,6 +86,7 @@ export async function runRenderPipeline(options: {
   debug: boolean;
   progress: RenderProgress;
 }): Promise<Buffer> {
+  const sharp = getSharp();
   const { template, designPath, debug, progress } = options;
   const { canvas, layers } = template.config;
 
