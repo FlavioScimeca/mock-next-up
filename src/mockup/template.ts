@@ -1,0 +1,173 @@
+import { existsSync } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+import sharp from "sharp";
+import { env } from "../config/env";
+import { validateTemplateConfig } from "./config";
+import { MockupError } from "./errors";
+import {
+  REQUIRED_TEMPLATE_FILES,
+  type LoadedTemplate,
+} from "./types";
+
+let templateIndex: Map<string, string> | null = null;
+
+export function assertSafeTemplateId(templateId: string): void {
+  if (!templateId || templateId.includes("/") || templateId.includes("\\") || templateId.includes("..")) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid templateId: must be a safe identifier without path separators",
+      400,
+    );
+  }
+}
+
+async function collectTemplateDirs(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const results: string[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const fullPath = join(dir, entry.name);
+    const hasAllRequired = REQUIRED_TEMPLATE_FILES.every((file) =>
+      existsSync(join(fullPath, file)),
+    );
+
+    if (hasAllRequired) {
+      results.push(fullPath);
+      continue;
+    }
+
+    results.push(...(await collectTemplateDirs(fullPath)));
+  }
+
+  return results;
+}
+
+async function buildTemplateIndex(): Promise<Map<string, string>> {
+  const index = new Map<string, string>();
+  const templateDirs = await collectTemplateDirs(env.templatesDir);
+
+  for (const dir of templateDirs) {
+    const configPath = join(dir, "config.json");
+    const raw: unknown = await Bun.file(configPath).json();
+
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        `Invalid template config in ${configPath}`,
+        422,
+      );
+    }
+
+    const id = (raw as Record<string, unknown>).id;
+    if (typeof id !== "string" || id.length === 0) {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        `Invalid template config: missing id in ${configPath}`,
+        422,
+      );
+    }
+
+    const config = validateTemplateConfig(raw, id);
+
+    if (index.has(config.id)) {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        `Duplicate template id found: ${config.id}`,
+        422,
+      );
+    }
+
+    index.set(config.id, dir);
+  }
+
+  return index;
+}
+
+async function getTemplateIndex(): Promise<Map<string, string>> {
+  if (!templateIndex) {
+    templateIndex = await buildTemplateIndex();
+  }
+  return templateIndex;
+}
+
+async function validateAssetDimensions(
+  template: LoadedTemplate,
+): Promise<void> {
+  const { canvas } = template.config;
+  const assets = [
+    ["base.png", template.paths.base],
+    ["mask.png", template.paths.mask],
+    ["shadow.png", template.paths.shadow],
+    ["highlight.png", template.paths.highlight],
+  ] as const;
+
+  for (const [name, assetPath] of assets) {
+    const metadata = await sharp(assetPath).metadata();
+
+    if (
+      metadata.width !== canvas.width ||
+      metadata.height !== canvas.height
+    ) {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        `Invalid template config: ${name} dimensions (${metadata.width}x${metadata.height}) do not match canvas (${canvas.width}x${canvas.height})`,
+        422,
+      );
+    }
+  }
+}
+
+export async function loadTemplate(templateId: string): Promise<LoadedTemplate> {
+  assertSafeTemplateId(templateId);
+
+  const index = await getTemplateIndex();
+  const dir = index.get(templateId);
+
+  if (!dir) {
+    throw new MockupError(
+      "UNKNOWN_TEMPLATE",
+      `Template not found: ${templateId}`,
+      404,
+    );
+  }
+
+  for (const file of REQUIRED_TEMPLATE_FILES) {
+    const filePath = join(dir, file);
+    if (!existsSync(filePath)) {
+      throw new MockupError(
+        "MISSING_TEMPLATE_ASSET",
+        `Template asset missing: ${file}`,
+        422,
+      );
+    }
+  }
+
+  const configPath = join(dir, "config.json");
+  const raw = await Bun.file(configPath).json();
+  const config = validateTemplateConfig(raw, templateId);
+
+  const template: LoadedTemplate = {
+    id: templateId,
+    dir,
+    config,
+    paths: {
+      base: join(dir, "base.png"),
+      mask: join(dir, "mask.png"),
+      shadow: join(dir, "shadow.png"),
+      highlight: join(dir, "highlight.png"),
+      config: configPath,
+    },
+  };
+
+  await validateAssetDimensions(template);
+  return template;
+}
+
+export function resetTemplateIndex(): void {
+  templateIndex = null;
+}

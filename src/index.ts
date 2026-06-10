@@ -1,15 +1,63 @@
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
+import { initLogger, parseError } from "evlog";
+import { evlog } from "evlog/elysia";
+import { env } from "./config/env";
+import {
+  getErrorStatus,
+  isMockupError,
+  toErrorResponse,
+} from "./mockup/errors";
+import { healthRoutes } from "./routes/health";
+import { mockupRoutes } from "./routes/mockups";
+
+initLogger({
+  env: { service: process.env.EVLOG_SERVICE ?? "mock-next-up" },
+});
 
 const app = new Elysia()
-  .get("/", () => "Hello World")
-  .post("/", ({ body }) => body, {
-    body: t.Object({
-      name: t.String(),
+  .use(
+    evlog({
+      exclude: ["/health"],
     }),
+  )
+  .use(healthRoutes)
+  .use(mockupRoutes)
+  .onError(({ error, set, code, log }) => {
+    if (code === "VALIDATION") {
+      set.status = 422;
+      log?.set({ validation: { failed: true } });
+      return error;
+    }
+
+    if (isMockupError(error)) {
+      set.status = error.status;
+      log?.set({
+        error: { code: error.code, message: error.message },
+      });
+      return toErrorResponse(error);
+    }
+
+    const parsed = parseError(error);
+    set.status = parsed.status ?? 500;
+    log?.set({
+      error: {
+        code: parsed.code,
+        message: parsed.message,
+        status: parsed.status,
+      },
+    });
+
+    return {
+      success: false,
+      error: parsed.message,
+      ...(parsed.why ? { why: parsed.why } : {}),
+      ...(parsed.fix ? { fix: parsed.fix } : {}),
+      ...(parsed.link ? { link: parsed.link } : {}),
+    };
   });
 
 if (import.meta.main) {
-  const port = Number(process.env.PORT) || 3000;
+  const port = env.port;
   app.listen(port);
   console.log(`Listening on http://localhost:${port}`);
 }

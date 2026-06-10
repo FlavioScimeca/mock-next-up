@@ -1,0 +1,29 @@
+{
+  "id": "generic-hang-white",
+  "canvas": {
+    "width": 2000,
+    "height": 2000
+  },
+  "printArea": {
+    "x": 650,
+    "y": 610,
+    "width": 700,
+    "height": 760
+  },
+  "layers": {
+    "shadow": {
+      "enabled": true,
+      "blend": "multiply",
+      "opacity": 0.42
+    },
+    "highlight": {
+      "enabled": true,
+      "blend": "screen",
+      "opacity": 0.18
+    }
+  },
+  "output": {
+    "format": "png",
+    "quality": 90
+  }
+}
