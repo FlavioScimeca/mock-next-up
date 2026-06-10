@@ -1,5 +1,4 @@
 "use strict";
 
 // Overwritten on linux/Vercel by scripts/prepare-vercel.mjs.
-// Local macOS dev never loads this file (sharp uses the native darwin binary).
 module.exports = null;

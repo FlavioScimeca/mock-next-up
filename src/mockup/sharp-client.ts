@@ -26,7 +26,7 @@ function initVercelSharp(): void {
 
   if (!binding) {
     throw new Error(
-      "sharp wasm binding missing. Run postinstall-sharp on the Vercel builder (linux).",
+      "sharp wasm binding missing. Run prepare-vercel on the Vercel builder (linux).",
     );
   }
 

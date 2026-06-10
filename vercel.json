@@ -1,13 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install --include=optional && node scripts/postinstall-sharp.mjs",
-  "buildCommand": "node scripts/postinstall-sharp.mjs",
+  "installCommand": "npm install --include=optional && node scripts/prepare-vercel.mjs",
+  "buildCommand": "node scripts/prepare-vercel.mjs",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{src/native/sharp-wasm32/lib/*,src/assets/**}"
+      "includeFiles": "api/vendor/**"
     }
   },
   "env": {
-    "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
+    "SHARP_IGNORE_GLOBAL_LIBVIPS": "1",
+    "TEMPLATES_DIR": "api/vendor/assets/templates",
+    "DESIGNS_DIR": "api/vendor/assets/designs"
   }
 }
