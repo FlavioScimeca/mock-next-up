@@ -47,3 +47,7 @@ dist/*
 
 outputs/
 uploads/
+
+# Vercel build copies native sharp binaries here (see scripts/prepare-vercel-sharp.ts)
+src/vendor/sharp-native/*
+!src/vendor/sharp-native/.gitkeep

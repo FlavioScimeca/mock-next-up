@@ -59,22 +59,25 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 ### Vercel deployment (Linux x64, serverless)
 
-Vercel bundles your app **without** native `libvips-cpp.so` files, so linux-x64 `sharp` fails at runtime even when install succeeds ([common Vercel sharp issue](https://community.vercel.com/t/help-adding-sharp-to-serverless-function/6069)).
+Vercel’s function bundle often omits `node_modules/@img/**`, so native `sharp` fails with either `libvips-cpp.so: cannot open shared object file` or missing wasm files (Bun skips `@img/sharp-wasm32` on linux-x64).
 
-**Fix used in this repo:** WebAssembly sharp on Vercel only.
+**Fix used in this repo:** copy linux-x64 sharp + libvips into `src/vendor/sharp-native/` during the Vercel build, then inject that binding before render.
 
 [`vercel.json`](vercel.json):
 
 ```json
 {
   "bunVersion": "1.x",
-  "installCommand": "bun install && bun add @img/sharp-wasm32@0.35.0"
+  "installCommand": "bun install && npm install @img/sharp-linux-x64@0.35.0 @img/sharp-libvips-linux-x64@1.3.0 --no-save --force",
+  "buildCommand": "bun run scripts/prepare-vercel-sharp.ts"
 }
 ```
 
-[`src/mockup/sharp-init.ts`](src/mockup/sharp-init.ts) and [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) inject the wasm binding before any render code runs. Sharp’s loader always tries native linux-x64 first on Vercel, which fails when libvips `.so` files are missing from the bundle.
+[`scripts/prepare-vercel-sharp.ts`](scripts/prepare-vercel-sharp.ts) runs only when `VERCEL=1` and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64` next to your app code so they ship with the function.
 
-Wasm is slower than native but works reliably on serverless. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
+[`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads the vendored native binding on Vercel before any render.
+
+Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
 
 ### Linux ARM64 + musl (Alpine, many containers)
 
@@ -101,7 +104,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | serverless x64 | x64 | `@img/sharp-wasm32` via [`vercel.json`](vercel.json) `installCommand` |
+| Vercel | glibc | x64 | `prepare-vercel-sharp.ts` copies `@img/sharp-linux-x64` + libvips into `src/vendor/` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

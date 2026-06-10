@@ -8,8 +8,8 @@
     "start": "NODE_ENV=production bun src/index.ts",
     "typecheck": "tsc --noEmit",
     "render:test": "bun scripts/render-test.ts",
-    "install:sharp:linux-arm64-musl": "bun add --cpu=arm64 --os=linux --optional @img/sharp-linuxmusl-arm64@0.35.0 @img/sharp-libvips-linuxmusl-arm64@1.3.0",
-    "install:sharp:vercel": "bun add @img/sharp-wasm32@0.35.0"
+    "prepare:vercel:sharp": "bun run scripts/prepare-vercel-sharp.ts",
+    "install:sharp:linux-arm64-musl": "bun add --cpu=arm64 --os=linux --optional @img/sharp-linuxmusl-arm64@0.35.0 @img/sharp-libvips-linuxmusl-arm64@1.3.0"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
@@ -20,7 +20,8 @@
     "sharp": "0.35.0"
   },
   "optionalDependencies": {
-    "@img/sharp-wasm32": "0.35.0",
+    "@img/sharp-linux-x64": "0.35.0",
+    "@img/sharp-libvips-linux-x64": "1.3.0",
     "@img/sharp-linuxmusl-arm64": "0.35.0",
     "@img/sharp-libvips-linuxmusl-arm64": "1.3.0"
   },

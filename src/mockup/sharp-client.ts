@@ -7,21 +7,31 @@ const require = createRequire(import.meta.url);
 
 let sharpModule: typeof Sharp | null = null;
 
-function loadWasmSharpBinding(): unknown {
-  const wasmPackageJson = require.resolve("@img/sharp-wasm32/package.json");
-  const wasmEntry = join(
-    wasmPackageJson,
-    "..",
-    "lib",
-    "sharp-wasm32-0.35.0.node.js",
-  );
+function loadVercelNativeBinding(): unknown {
+  const vendorRoot = join(import.meta.dir, "..", "vendor", "sharp-native");
+  const bindingPath = join(vendorRoot, "sharp-linux-x64", "sharp.node");
 
-  return require(wasmEntry);
+  return require(bindingPath);
+}
+
+function patchSharpBindingModule(binding: unknown): void {
+  const sharpPackageJson = require.resolve("sharp/package.json");
+  const sharpBindingModule = join(sharpPackageJson, "..", "dist", "sharp.cjs");
+
+  require.cache[sharpBindingModule] = {
+    id: sharpBindingModule,
+    filename: sharpBindingModule,
+    loaded: true,
+    exports: binding,
+    children: [],
+    paths: [],
+  } as unknown as NodeModule;
 }
 
 /**
- * Sharp on linux-x64 always tries native @img/sharp-linux-x64 first, which fails on
- * Vercel when libvips .so files are not bundled. Force the wasm binding instead.
+ * Vercel's function bundle omits most of node_modules/@img. Native linux-x64 sharp
+ * also fails when libvips .so files are missing. We vendor both packages under src/
+ * during the Vercel build and inject that binding before loading sharp.
  */
 export function initSharp(): void {
   if (sharpModule) {
@@ -29,18 +39,7 @@ export function initSharp(): void {
   }
 
   if (env.isVercel) {
-    const wasmBinding = loadWasmSharpBinding();
-    const sharpPackageJson = require.resolve("sharp/package.json");
-    const sharpBindingModule = join(sharpPackageJson, "..", "dist", "sharp.cjs");
-
-    require.cache[sharpBindingModule] = {
-      id: sharpBindingModule,
-      filename: sharpBindingModule,
-      loaded: true,
-      exports: wasmBinding,
-      children: [],
-      paths: [],
-    } as unknown as NodeModule;
+    patchSharpBindingModule(loadVercelNativeBinding());
   }
 
   sharpModule = require("sharp") as typeof Sharp;
