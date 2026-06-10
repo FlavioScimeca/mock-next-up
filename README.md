@@ -61,7 +61,7 @@ Logging uses [evlog](https://www.evlog.dev/integrate/frameworks/elysia) for stru
 
 Deploy with the **Node.js** runtime (no `bunVersion`). Local dev still uses `bun run dev`.
 
-Vercel’s file tracer drops `node_modules/@img/**` unless you opt in. This project uses an **`api/index.ts` entry** (re-exporting [`src/app.ts`](src/app.ts)) so `functions.includeFiles` is valid:
+Vercel’s tracer often drops `node_modules/@img/**` even with `includeFiles`. This repo **copies** linux sharp + libvips into `api/sharp-native/` on install, then explicitly includes that folder in the function bundle.
 
 [`vercel.json`](vercel.json):
 
@@ -70,10 +70,19 @@ Vercel’s file tracer drops `node_modules/@img/**` unless you opt in. This proj
   "installCommand": "npm install --include=optional",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "node_modules/@img/**"
+      "includeFiles": "api/sharp-native/**"
     }
   }
 }
+```
+
+[`scripts/postinstall-sharp.mjs`](scripts/postinstall-sharp.mjs) runs when `VERCEL=1` and copies `@img/sharp-linux-x64` + `@img/sharp-libvips-linux-x64` next to the serverless entry. [`src/mockup/sharp-client.ts`](src/mockup/sharp-client.ts) loads that binding on Vercel.
+
+Build log should show:
+
+```txt
+postinstall-sharp: copied sharp-linux-x64 -> api/sharp-native/sharp-linux-x64
+postinstall-sharp: copied sharp-libvips-linux-x64 -> api/sharp-native/sharp-libvips-linux-x64
 ```
 
 [`src/index.ts`](src/index.ts) is **local dev only** (starts the listener). Production traffic goes through [`api/index.ts`](api/index.ts).
@@ -105,7 +114,7 @@ Build on the same OS/arch as production, or run the command above on your CI age
 
 | Deploy target | libc | CPU | Bun install |
 |---------------|------|-----|-------------|
-| Vercel | glibc | x64 | `api/index.ts` + `includeFiles: node_modules/@img/**` |
+| Vercel | glibc | x64 | postinstall → `api/sharp-native/**` + `includeFiles` |
 | Alpine / musl container | musl | arm64 | `bun run install:sharp:linux-arm64-musl` |
 | Debian/Ubuntu container | glibc | arm64 | `bun add --cpu=arm64 --os=linux sharp` |
 

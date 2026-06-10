@@ -3,7 +3,7 @@
   "installCommand": "npm install --include=optional",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "node_modules/@img/**"
+      "includeFiles": "api/sharp-native/**"
     }
   },
   "env": {
