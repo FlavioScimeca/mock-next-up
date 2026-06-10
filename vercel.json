@@ -3,11 +3,7 @@
   "installCommand": "npm install --include=optional",
   "functions": {
     "src/index.ts": {
-      "includeFiles": [
-        "node_modules/@img/**",
-        "node_modules/sharp/**",
-        "src/assets/**"
-      ]
+      "includeFiles": "node_modules/@img/**"
     }
   },
   "env": {

@@ -68,17 +68,13 @@ Deploy with the **Node.js** runtime (no `bunVersion` in [`vercel.json`](vercel.j
   "installCommand": "npm install --include=optional",
   "functions": {
     "src/index.ts": {
-      "includeFiles": [
-        "node_modules/@img/**",
-        "node_modules/sharp/**",
-        "src/assets/**"
-      ]
+      "includeFiles": "node_modules/@img/**"
     }
   }
 }
 ```
 
-`npm install --include=optional` pulls in `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` on Vercel’s Linux builders. `includeFiles` copies those native binaries (and template PNGs) into the serverless function bundle — without this, sharp fails with missing `libvips-cpp.so`.
+`npm install --include=optional` pulls in `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` on Vercel’s Linux builders. `includeFiles` copies those native binaries into the serverless function bundle — without this, sharp fails with missing `libvips-cpp.so`. Template PNGs under `src/assets/` are shipped with the app source.
 
 Mockup routes lazy-load sharp on first request. Writable dirs use `/tmp/mock-next-up/outputs` and `/tmp/mock-next-up/uploads`.
 
