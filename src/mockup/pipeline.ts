@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
 import { getDebugDir } from "../config/env";
+import { RenderProgress } from "./progress";
 import { MockupError } from "./errors";
 import { applyAlphaMask, luminanceToAlphaMask } from "./mask";
 import { applyOpacity } from "./opacity";
@@ -82,11 +83,19 @@ export async function runRenderPipeline(options: {
   template: LoadedTemplate;
   designPath: string;
   debug: boolean;
+  progress: RenderProgress;
 }): Promise<Buffer> {
-  const { template, designPath, debug } = options;
+  const { template, designPath, debug, progress } = options;
   const { canvas, layers } = template.config;
 
+  progress.step("validate-design", { designPath });
+
   await validateDesignIsPng(designPath);
+
+  progress.step("build-alpha-mask", {
+    maskPath: template.paths.mask,
+    canvas: `${canvas.width}x${canvas.height}`,
+  });
 
   const alphaMask = await luminanceToAlphaMask(template.paths.mask);
 
@@ -108,6 +117,12 @@ export async function runRenderPipeline(options: {
     template,
   );
 
+  progress.step("resize-design", {
+    source: `${designWidth}x${designHeight}`,
+    target: `${placement.resizedWidth}x${placement.resizedHeight}`,
+    printArea: `${template.config.printArea.width}x${template.config.printArea.height}`,
+  });
+
   const resizedDesign = await sharp(designPath)
     .resize(placement.resizedWidth, placement.resizedHeight, {
       fit: "inside",
@@ -116,6 +131,12 @@ export async function runRenderPipeline(options: {
     .toBuffer();
 
   await writeDebugImage(debug, "resized-design.png", resizedDesign);
+
+  progress.step("place-design-on-canvas", {
+    left: placement.left,
+    top: placement.top,
+    canvas: `${canvas.width}x${canvas.height}`,
+  });
 
   const designCanvas = await sharp({
     create: {
@@ -137,8 +158,12 @@ export async function runRenderPipeline(options: {
 
   await writeDebugImage(debug, "design-canvas.png", designCanvas);
 
+  progress.step("mask-design");
+
   const maskedDesign = await applyAlphaMask(designCanvas, alphaMask);
   await writeDebugImage(debug, "masked-design.png", maskedDesign);
+
+  progress.step("composite-base", { basePath: template.paths.base });
 
   const composites: Array<{
     input: Buffer;
@@ -151,6 +176,11 @@ export async function runRenderPipeline(options: {
   ];
 
   if (layers.shadow.enabled) {
+    progress.step("apply-shadow", {
+      blend: layers.shadow.blend,
+      opacity: layers.shadow.opacity,
+    });
+
     const shadowWithOpacity = await applyOpacity(
       template.paths.shadow,
       layers.shadow.opacity,
@@ -164,6 +194,11 @@ export async function runRenderPipeline(options: {
   }
 
   if (layers.highlight.enabled) {
+    progress.step("apply-highlight", {
+      blend: layers.highlight.blend,
+      opacity: layers.highlight.opacity,
+    });
+
     const highlightWithOpacity = await applyOpacity(
       template.paths.highlight,
       layers.highlight.opacity,
@@ -178,6 +213,10 @@ export async function runRenderPipeline(options: {
       blend: "screen",
     });
   }
+
+  progress.step("encode-final-png", {
+    layers: composites.length,
+  });
 
   return sharp(template.paths.base).composite(composites).png().toBuffer();
 }

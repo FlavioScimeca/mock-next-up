@@ -1,21 +1,27 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { env, getDebugDir } from "../config/env";
-import { logRenderEvent } from "../logging";
 import { MockupError } from "./errors";
 import { generateOutputFilename } from "./filenames";
 import { runRenderPipeline } from "./pipeline";
+import { RenderProgress } from "./progress";
 import { loadTemplate } from "./template";
 import type { RenderOptions, RenderResult } from "./types";
 
 export async function renderMockup(options: RenderOptions): Promise<RenderResult> {
   const { templateId, designPath, debug = false } = options;
   const startedAt = Date.now();
+  const progress = new RenderProgress();
 
-  logRenderEvent({ start: true, templateId });
+  progress.step("start", { templateId, designPath, debug });
 
   const template = await loadTemplate(templateId);
-  logRenderEvent({ templateDir: template.dir });
+
+  progress.step("load-template", {
+    templateId: template.id,
+    templateDir: template.dir,
+    canvas: `${template.config.canvas.width}x${template.config.canvas.height}`,
+  });
 
   const outputPath = options.outputPath
     ? options.outputPath
@@ -24,6 +30,7 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
   await mkdir(env.outputsDir, { recursive: true });
   if (debug) {
     await mkdir(getDebugDir(), { recursive: true });
+    progress.step("prepare-debug-output", { debugDir: getDebugDir() });
   }
 
   let finalBuffer: Buffer;
@@ -32,8 +39,14 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
       template,
       designPath,
       debug,
+      progress,
     });
   } catch (error) {
+    progress.step("failed", {
+      code: error instanceof MockupError ? error.code : "RENDER_FAILURE",
+      message: error instanceof Error ? error.message : "Unknown render error",
+    });
+
     if (error instanceof MockupError) {
       throw error;
     }
@@ -43,12 +56,23 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
     throw new MockupError("RENDER_FAILURE", `Render failed: ${message}`, 500);
   }
 
+  const relativeOutputPath = outputPath.startsWith(env.projectRoot)
+    ? outputPath.slice(env.projectRoot.length + 1)
+    : outputPath;
+
   try {
+    progress.step("write-output", { outputPath: relativeOutputPath });
+
     await writeFile(outputPath, finalBuffer);
     if (debug) {
       await writeFile(join(getDebugDir(), "final.png"), finalBuffer);
     }
   } catch (error) {
+    progress.step("failed", {
+      code: "OUTPUT_WRITE_FAILURE",
+      message: error instanceof Error ? error.message : "Unknown write error",
+    });
+
     const message =
       error instanceof Error ? error.message : "Unknown write error";
     throw new MockupError(
@@ -58,12 +82,9 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
     );
   }
 
-  const relativeOutputPath = outputPath.startsWith(env.projectRoot)
-    ? outputPath.slice(env.projectRoot.length + 1)
-    : outputPath;
-
   const elapsedMs = Date.now() - startedAt;
-  logRenderEvent({
+
+  progress.step("complete", {
     outputPath: relativeOutputPath,
     durationMs: elapsedMs,
     width: template.config.canvas.width,

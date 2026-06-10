@@ -10,8 +10,4 @@ export function setRequestLog(fields: Record<string, unknown>): void {
 
 export function logRenderEvent(fields: Record<string, unknown>): void {
   setRequestLog({ render: fields });
-
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[render]", fields);
-  }
 }
