@@ -16,10 +16,23 @@ export interface LayerConfig {
   opacity: number;
 }
 
+export interface DesignConfig {
+  opacity?: number;
+}
+
+export interface FabricConfig {
+  enabled?: boolean;
+  textureSource?: "shadow";
+  textureOpacity?: number;
+  blend?: "multiply";
+}
+
 export interface TemplateConfig {
   id: string;
   canvas: CanvasConfig;
   printArea: PrintAreaConfig;
+  design?: DesignConfig;
+  fabric?: FabricConfig;
   layers: {
     shadow: LayerConfig;
     highlight: LayerConfig;

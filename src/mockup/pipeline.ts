@@ -92,6 +92,16 @@ function computeContainedPlacement(
   return { resizedWidth, resizedHeight, left, top };
 }
 
+function resolveFabricTexturePath(
+  source: "shadow",
+  paths: LoadedTemplate["paths"],
+): string {
+  switch (source) {
+    case "shadow":
+      return paths.shadow;
+  }
+}
+
 export async function runRenderPipeline(options: {
   template: LoadedTemplate;
   designPath: string;
@@ -177,9 +187,17 @@ export async function runRenderPipeline(options: {
   const maskedDesign = await applyAlphaMask(designCanvas, alphaMask);
   await writeDebugImage(debug, "masked-design.png", maskedDesign);
 
+  const designOpacity = template.config.design?.opacity ?? 1;
+  const printedDesign =
+    designOpacity < 1
+      ? await applyOpacity(maskedDesign, designOpacity)
+      : maskedDesign;
+
+  await writeDebugImage(debug, "printed-design.png", printedDesign);
+
   progress.step("extract-design-alpha-mask");
 
-  const designAlphaMask = await extractAlphaMaskFromLayer(maskedDesign);
+  const designAlphaMask = await extractAlphaMaskFromLayer(printedDesign);
   await writeDebugImage(debug, "design-alpha-mask.png", designAlphaMask);
 
   progress.step("composite-base", { basePath: template.paths.base });
@@ -189,10 +207,42 @@ export async function runRenderPipeline(options: {
     blend: "over" | "multiply" | "screen";
   }> = [
     {
-      input: maskedDesign,
+      input: printedDesign,
       blend: "over",
     },
   ];
+
+  const fabric = template.config.fabric;
+  const fabricEnabled = fabric?.enabled ?? false;
+  const fabricTextureSource = fabric?.textureSource ?? "shadow";
+  const fabricTextureOpacity = fabric?.textureOpacity ?? 0.05;
+
+  if (fabricEnabled) {
+    const texturePath = resolveFabricTexturePath(
+      fabricTextureSource,
+      template.paths,
+    );
+
+    progress.step("apply-fabric-texture", {
+      textureSource: fabricTextureSource,
+      blend: fabric?.blend ?? "multiply",
+      opacity: fabricTextureOpacity,
+    });
+
+    const fabricWithOpacity = await applyOpacity(
+      texturePath,
+      fabricTextureOpacity,
+    );
+    const clippedFabricTexture = await applyAlphaMask(
+      fabricWithOpacity,
+      designAlphaMask,
+    );
+    await writeDebugImage(debug, "clipped-fabric-texture.png", clippedFabricTexture);
+    composites.push({
+      input: clippedFabricTexture,
+      blend: "multiply",
+    });
+  }
 
   if (layers.shadow.enabled) {
     progress.step("apply-shadow", {

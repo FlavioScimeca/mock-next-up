@@ -10,11 +10,20 @@
     "width": 700,
     "height": 760
   },
+  "design": {
+    "opacity": 0.97
+  },
+  "fabric": {
+    "enabled": true,
+    "textureSource": "shadow",
+    "textureOpacity": 0.05,
+    "blend": "multiply"
+  },
   "layers": {
     "shadow": {
       "enabled": true,
       "blend": "multiply",
-      "opacity": 0.22
+      "opacity": 0.30
     },
     "highlight": {
       "enabled": true,

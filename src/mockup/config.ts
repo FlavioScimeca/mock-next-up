@@ -89,6 +89,99 @@ function parseLayer(
   return { enabled, blend, opacity };
 }
 
+function parseOptionalOpacity(
+  obj: Record<string, unknown>,
+  key: string,
+  path: string,
+): number | undefined {
+  if (!(key in obj)) {
+    return undefined;
+  }
+
+  const opacity = requireNumber(obj, key, path);
+
+  if (opacity < 0 || opacity > 1) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      `Invalid template config: ${path}.${key} must be between 0 and 1`,
+      422,
+    );
+  }
+
+  return opacity;
+}
+
+function parseDesign(raw: unknown): TemplateConfig["design"] {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: design must be an object",
+      422,
+    );
+  }
+
+  const opacity = parseOptionalOpacity(raw, "opacity", "design");
+  return opacity === undefined ? {} : { opacity };
+}
+
+function parseFabric(raw: unknown): TemplateConfig["fabric"] {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: fabric must be an object",
+      422,
+    );
+  }
+
+  const fabric: NonNullable<TemplateConfig["fabric"]> = {};
+
+  if ("enabled" in raw) {
+    fabric.enabled = requireBoolean(raw, "enabled", "fabric");
+  }
+
+  if ("textureSource" in raw) {
+    const textureSource = requireString(raw, "textureSource", "fabric");
+    if (textureSource !== "shadow") {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        'Invalid template config: fabric.textureSource must be "shadow"',
+        422,
+      );
+    }
+    fabric.textureSource = "shadow";
+  }
+
+  if ("textureOpacity" in raw) {
+    fabric.textureOpacity = parseOptionalOpacity(
+      raw,
+      "textureOpacity",
+      "fabric",
+    );
+  }
+
+  if ("blend" in raw) {
+    const blend = requireString(raw, "blend", "fabric");
+    if (blend !== "multiply") {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        'Invalid template config: fabric.blend must be "multiply"',
+        422,
+      );
+    }
+    fabric.blend = "multiply";
+  }
+
+  return fabric;
+}
+
 export function validateTemplateConfig(
   raw: unknown,
   expectedTemplateId: string,
@@ -208,10 +301,15 @@ export function validateTemplateConfig(
     );
   }
 
+  const design = parseDesign(raw.design);
+  const fabric = parseFabric(raw.fabric);
+
   return {
     id,
     canvas: { width: canvasWidth, height: canvasHeight },
     printArea,
+    ...(design !== undefined ? { design } : {}),
+    ...(fabric !== undefined ? { fabric } : {}),
     layers: { shadow, highlight },
     output: { format, quality },
   };
