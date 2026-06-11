@@ -20,6 +20,12 @@ export interface DesignConfig {
   opacity?: number;
 }
 
+export interface PrintConfig {
+  rasterize?: boolean;
+  resolutionScale?: number;
+  soften?: number;
+}
+
 export interface FabricConfig {
   enabled?: boolean;
   textureSource?: "shadow" | "fabricSplit";
@@ -34,6 +40,7 @@ export interface TemplateConfig {
   canvas: CanvasConfig;
   printArea: PrintAreaConfig;
   design?: DesignConfig;
+  print?: PrintConfig;
   fabric?: FabricConfig;
   layers: {
     shadow: LayerConfig;
@@ -62,6 +69,7 @@ export interface LoadedTemplate {
 
 export interface RenderConfigOverride {
   design?: DesignConfig;
+  print?: PrintConfig;
   fabric?: FabricConfig;
   layers?: {
     shadow?: Partial<LayerConfig>;

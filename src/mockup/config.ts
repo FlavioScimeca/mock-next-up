@@ -190,6 +190,66 @@ function parseFabric(raw: unknown): TemplateConfig["fabric"] {
   return fabric;
 }
 
+function parseOptionalNumberInRange(
+  obj: Record<string, unknown>,
+  key: string,
+  path: string,
+  min: number,
+  max: number,
+): number | undefined {
+  if (!(key in obj)) {
+    return undefined;
+  }
+
+  const value = requireNumber(obj, key, path);
+
+  if (value < min || value > max) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      `Invalid template config: ${path}.${key} must be between ${min} and ${max}`,
+      422,
+    );
+  }
+
+  return value;
+}
+
+function parsePrint(raw: unknown): TemplateConfig["print"] {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: print must be an object",
+      422,
+    );
+  }
+
+  const print: NonNullable<TemplateConfig["print"]> = {};
+
+  if ("rasterize" in raw) {
+    print.rasterize = requireBoolean(raw, "rasterize", "print");
+  }
+
+  if ("resolutionScale" in raw) {
+    print.resolutionScale = parseOptionalNumberInRange(
+      raw,
+      "resolutionScale",
+      "print",
+      0.25,
+      1,
+    );
+  }
+
+  if ("soften" in raw) {
+    print.soften = parseOptionalNumberInRange(raw, "soften", "print", 0, 2);
+  }
+
+  return print;
+}
+
 function parseLayerOverride(
   raw: unknown,
   path: string,
@@ -249,6 +309,10 @@ export function validateRenderConfigOverride(
     override.fabric = parseFabric(raw.fabric);
   }
 
+  if ("print" in raw) {
+    override.print = parsePrint(raw.print);
+  }
+
   if ("layers" in raw) {
     if (!isRecord(raw.layers)) {
       throw new MockupError(
@@ -297,6 +361,9 @@ export function applyRenderConfigOverride(
       : {}),
     ...(override.fabric !== undefined
       ? { fabric: { ...base.fabric, ...override.fabric } }
+      : {}),
+    ...(override.print !== undefined
+      ? { print: { ...base.print, ...override.print } }
       : {}),
     layers: {
       shadow: override.layers?.shadow
@@ -430,12 +497,14 @@ export function validateTemplateConfig(
 
   const design = parseDesign(raw.design);
   const fabric = parseFabric(raw.fabric);
+  const print = parsePrint(raw.print);
 
   return {
     id,
     canvas: { width: canvasWidth, height: canvasHeight },
     printArea,
     ...(design !== undefined ? { design } : {}),
+    ...(print !== undefined ? { print } : {}),
     ...(fabric !== undefined ? { fabric } : {}),
     layers: { shadow, highlight },
     output: { format, quality },

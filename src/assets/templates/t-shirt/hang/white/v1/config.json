@@ -11,24 +11,29 @@
     "height": 760
   },
   "design": {
-    "opacity": 0.97
+    "opacity": 1
+  },
+  "print": {
+    "rasterize": true,
+    "resolutionScale": 0.7,
+    "soften": 0.35
   },
   "fabric": {
     "enabled": true,
     "textureSource": "shadow",
-    "textureOpacity": 0.05,
+    "textureOpacity": 0.02,
     "blend": "multiply"
   },
   "layers": {
     "shadow": {
       "enabled": true,
       "blend": "multiply",
-      "opacity": 0.30
+      "opacity": 0.08
     },
     "highlight": {
       "enabled": true,
       "blend": "screen",
-      "opacity": 0.10
+      "opacity": 0.18
     }
   },
   "output": {

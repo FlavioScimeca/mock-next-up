@@ -12,6 +12,7 @@ import {
   luminanceToAlphaMask,
 } from "./mask.js";
 import { applyOpacity } from "./opacity.js";
+import { simulatePrintRaster } from "./print.js";
 import type { LoadedTemplate } from "./types.js";
 
 async function writeDebugImage(
@@ -153,6 +154,35 @@ export async function runRenderPipeline(options: {
 
   await writeDebugImage(debug, "resized-design.png", resizedDesign);
 
+  const resizedMetadata = await sharp(resizedDesign).metadata();
+  const resizedWidth = resizedMetadata.width;
+  const resizedHeight = resizedMetadata.height;
+
+  if (!resizedWidth || !resizedHeight) {
+    throw new MockupError(
+      "RENDER_FAILURE",
+      "Render failed: unable to read resized design dimensions",
+      500,
+    );
+  }
+
+  const printConfig = template.config.print;
+  if (printConfig?.rasterize) {
+    progress.step("simulate-print-raster", {
+      resolutionScale: printConfig.resolutionScale ?? 0.75,
+      soften: printConfig.soften ?? 0.25,
+    });
+  }
+
+  const printReadyDesign = await simulatePrintRaster(
+    resizedDesign,
+    resizedWidth,
+    resizedHeight,
+    printConfig,
+  );
+
+  await writeDebugImage(debug, "print-ready-design.png", printReadyDesign);
+
   progress.step("place-design-on-canvas", {
     left: placement.left,
     top: placement.top,
@@ -169,7 +199,7 @@ export async function runRenderPipeline(options: {
   })
     .composite([
       {
-        input: resizedDesign,
+        input: printReadyDesign,
         left: placement.left,
         top: placement.top,
       },

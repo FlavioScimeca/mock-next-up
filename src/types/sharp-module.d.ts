@@ -29,7 +29,12 @@ declare module "sharp" {
   interface SharpInstance {
     ensureAlpha(): SharpInstance;
     raw(): SharpInstance;
-    resize(width: number, height: number, options?: { fit?: string }): SharpInstance;
+    resize(
+      width: number,
+      height: number,
+      options?: { fit?: string; kernel?: string },
+    ): SharpInstance;
+    blur(sigma: number): SharpInstance;
     composite(overlays: OverlayOptions[]): SharpInstance;
     png(): SharpInstance;
     metadata(): Promise<Metadata>;
