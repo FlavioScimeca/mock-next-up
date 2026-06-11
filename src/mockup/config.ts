@@ -149,14 +149,14 @@ function parseFabric(raw: unknown): TemplateConfig["fabric"] {
 
   if ("textureSource" in raw) {
     const textureSource = requireString(raw, "textureSource", "fabric");
-    if (textureSource !== "shadow") {
+    if (textureSource !== "shadow" && textureSource !== "fabricSplit") {
       throw new MockupError(
         "INVALID_CONFIG",
-        'Invalid template config: fabric.textureSource must be "shadow"',
+        'Invalid template config: fabric.textureSource must be "shadow" or "fabricSplit"',
         422,
       );
     }
-    fabric.textureSource = "shadow";
+    fabric.textureSource = textureSource;
   }
 
   if ("textureOpacity" in raw) {
@@ -165,6 +165,14 @@ function parseFabric(raw: unknown): TemplateConfig["fabric"] {
       "textureOpacity",
       "fabric",
     );
+  }
+
+  if ("darkOpacity" in raw) {
+    fabric.darkOpacity = parseOptionalOpacity(raw, "darkOpacity", "fabric");
+  }
+
+  if ("lightOpacity" in raw) {
+    fabric.lightOpacity = parseOptionalOpacity(raw, "lightOpacity", "fabric");
   }
 
   if ("blend" in raw) {

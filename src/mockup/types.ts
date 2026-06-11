@@ -22,8 +22,10 @@ export interface DesignConfig {
 
 export interface FabricConfig {
   enabled?: boolean;
-  textureSource?: "shadow";
+  textureSource?: "shadow" | "fabricSplit";
   textureOpacity?: number;
+  darkOpacity?: number;
+  lightOpacity?: number;
   blend?: "multiply";
 }
 
@@ -53,6 +55,8 @@ export interface LoadedTemplate {
     shadow: string;
     highlight: string;
     config: string;
+    fabricDark?: string;
+    fabricLight?: string;
   };
 }
 
@@ -87,4 +91,9 @@ export const REQUIRED_TEMPLATE_FILES = [
   "shadow.png",
   "highlight.png",
   "config.json",
+] as const;
+
+export const OPTIONAL_FABRIC_FILES = [
+  "fabric-dark.png",
+  "fabric-light.png",
 ] as const;

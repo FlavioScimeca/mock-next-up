@@ -1,13 +1,33 @@
-import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { env } from "../src/config/env.js";
 import { listDesignPngs } from "../src/mockup/batch-test.js";
 import { withRenderLock } from "../src/mockup/lock.js";
 import { renderMockup } from "../src/mockup/render.js";
 
-const designPaths = await listDesignPngs();
-const designPath = designPaths[18];
+function pad(value: number): string {
+  return value.toString().padStart(2, "0");
+}
 
-if (!designPath) {
+function createBatchOutputDir(prefix: string): string {
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate()),
+  ].join("");
+  const time = [
+    pad(now.getHours()),
+    pad(now.getMinutes()),
+    pad(now.getSeconds()),
+  ].join("");
+
+  return join(env.outputsDir, `${prefix}-${date}-${time}`);
+}
+
+const designPaths = await listDesignPngs();
+
+if (designPaths.length === 0) {
   console.error(
     `[render-test] failed no PNG designs found in ${join(env.projectRoot, "src/assets/designs")}`,
   );
@@ -15,35 +35,47 @@ if (!designPath) {
 }
 
 const templateId = "generic-hang-white";
+const outputDir = createBatchOutputDir("render-test");
+
+await mkdir(outputDir, { recursive: true });
 
 console.log(`[render-test] templateId=${templateId}`);
-console.log(`[render-test] designPath=${designPath}`);
+console.log(`[render-test] designs=${designPaths.length}`);
+console.log(`[render-test] outputDir=${outputDir}`);
 
-try {
-  const result = await withRenderLock(() =>
-    renderMockup({
-      templateId,
-      designPath,
-      debug: true,
-      configOverride: {
-        design: { opacity: 0.8 },
-        fabric: {
-          enabled: true,
-          textureSource: "shadow",
-          textureOpacity: 0.5,
-          blend: "multiply",
-        },
-        layers: {
-          shadow: { enabled: true, blend: "multiply", opacity: 0.6 },
-          highlight: { enabled: true, blend: "screen", opacity: 0.3 },
-        },
-      },
-    }),
-  );
+let succeeded = 0;
+let failed = 0;
 
-  console.log(`[render-test] success outputPath=${result.outputPath}`);
-  console.log(`[render-test] dimensions=${result.width}x${result.height}`);
-} catch (error) {
-  console.error("[render-test] failed", error);
+for (const designPath of designPaths) {
+  const designName = basename(designPath);
+  const outputPath = join(outputDir, designName);
+
+  console.log(`[render-test] rendering design=${designName}`);
+
+  try {
+    const result = await withRenderLock(() =>
+      renderMockup({
+        templateId,
+        designPath,
+        outputPath,
+        debug: true,
+      }),
+    );
+
+    succeeded += 1;
+    console.log(
+      `[render-test] success design=${designName} outputPath=${result.outputPath}`,
+    );
+  } catch (error) {
+    failed += 1;
+    console.error(`[render-test] failed design=${designName}`, error);
+  }
+}
+
+console.log(
+  `[render-test] complete outputDir=${outputDir} total=${designPaths.length} succeeded=${succeeded} failed=${failed}`,
+);
+
+if (failed > 0) {
   process.exit(1);
 }

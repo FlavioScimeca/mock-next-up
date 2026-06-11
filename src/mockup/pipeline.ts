@@ -96,10 +96,7 @@ function resolveFabricTexturePath(
   source: "shadow",
   paths: LoadedTemplate["paths"],
 ): string {
-  switch (source) {
-    case "shadow":
-      return paths.shadow;
-  }
+  return paths.shadow;
 }
 
 export async function runRenderPipeline(options: {
@@ -218,30 +215,75 @@ export async function runRenderPipeline(options: {
   const fabricTextureOpacity = fabric?.textureOpacity ?? 0.05;
 
   if (fabricEnabled) {
-    const texturePath = resolveFabricTexturePath(
-      fabricTextureSource,
-      template.paths,
-    );
+    if (fabricTextureSource === "fabricSplit") {
+      const darkOpacity = fabric?.darkOpacity ?? 0.05;
+      const lightOpacity = fabric?.lightOpacity ?? 0.05;
 
-    progress.step("apply-fabric-texture", {
-      textureSource: fabricTextureSource,
-      blend: fabric?.blend ?? "multiply",
-      opacity: fabricTextureOpacity,
-    });
+      progress.step("apply-fabric-split-dark", {
+        textureSource: fabricTextureSource,
+        blend: "multiply",
+        opacity: darkOpacity,
+      });
 
-    const fabricWithOpacity = await applyOpacity(
-      texturePath,
-      fabricTextureOpacity,
-    );
-    const clippedFabricTexture = await applyAlphaMask(
-      fabricWithOpacity,
-      designAlphaMask,
-    );
-    await writeDebugImage(debug, "clipped-fabric-texture.png", clippedFabricTexture);
-    composites.push({
-      input: clippedFabricTexture,
-      blend: "multiply",
-    });
+      const fabricDarkWithOpacity = await applyOpacity(
+        template.paths.fabricDark!,
+        darkOpacity,
+      );
+      const clippedFabricDark = await applyAlphaMask(
+        fabricDarkWithOpacity,
+        designAlphaMask,
+      );
+      await writeDebugImage(debug, "clipped-fabric-dark.png", clippedFabricDark);
+      composites.push({
+        input: clippedFabricDark,
+        blend: "multiply",
+      });
+
+      progress.step("apply-fabric-split-light", {
+        textureSource: fabricTextureSource,
+        blend: "screen",
+        opacity: lightOpacity,
+      });
+
+      const fabricLightWithOpacity = await applyOpacity(
+        template.paths.fabricLight!,
+        lightOpacity,
+      );
+      const clippedFabricLight = await applyAlphaMask(
+        fabricLightWithOpacity,
+        designAlphaMask,
+      );
+      await writeDebugImage(debug, "clipped-fabric-light.png", clippedFabricLight);
+      composites.push({
+        input: clippedFabricLight,
+        blend: "screen",
+      });
+    } else {
+      const texturePath = resolveFabricTexturePath(
+        fabricTextureSource,
+        template.paths,
+      );
+
+      progress.step("apply-fabric-texture", {
+        textureSource: fabricTextureSource,
+        blend: fabric?.blend ?? "multiply",
+        opacity: fabricTextureOpacity,
+      });
+
+      const fabricWithOpacity = await applyOpacity(
+        texturePath,
+        fabricTextureOpacity,
+      );
+      const clippedFabricTexture = await applyAlphaMask(
+        fabricWithOpacity,
+        designAlphaMask,
+      );
+      await writeDebugImage(debug, "clipped-fabric-texture.png", clippedFabricTexture);
+      composites.push({
+        input: clippedFabricTexture,
+        blend: "multiply",
+      });
+    }
   }
 
   if (layers.shadow.enabled) {

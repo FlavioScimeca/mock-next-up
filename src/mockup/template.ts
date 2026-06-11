@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { validateTemplateConfig } from "./config.js";
 import { MockupError } from "./errors.js";
 import {
+  OPTIONAL_FABRIC_FILES,
   REQUIRED_TEMPLATE_FILES,
   type LoadedTemplate,
 } from "./types.js";
@@ -105,9 +106,15 @@ async function validateAssetDimensions(
     ["mask.png", template.paths.mask],
     ["shadow.png", template.paths.shadow],
     ["highlight.png", template.paths.highlight],
+    ["fabric-dark.png", template.paths.fabricDark],
+    ["fabric-light.png", template.paths.fabricLight],
   ] as const;
 
   for (const [name, assetPath] of assets) {
+    if (!assetPath) {
+      continue;
+    }
+
     const metadata = await sharp(assetPath).metadata();
 
     if (
@@ -120,6 +127,31 @@ async function validateAssetDimensions(
         422,
       );
     }
+  }
+}
+
+export function validateFabricSplitAssets(template: LoadedTemplate): void {
+  if (
+    !template.config.fabric?.enabled ||
+    template.config.fabric?.textureSource !== "fabricSplit"
+  ) {
+    return;
+  }
+
+  if (!template.paths.fabricDark) {
+    throw new MockupError(
+      "MISSING_TEMPLATE_ASSET",
+      "Template asset missing: fabric-dark.png required by fabric.textureSource=fabricSplit",
+      422,
+    );
+  }
+
+  if (!template.paths.fabricLight) {
+    throw new MockupError(
+      "MISSING_TEMPLATE_ASSET",
+      "Template asset missing: fabric-light.png required by fabric.textureSource=fabricSplit",
+      422,
+    );
   }
 }
 
@@ -152,6 +184,19 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
   const raw = JSON.parse(await readFile(configPath, "utf8"));
   const config = validateTemplateConfig(raw, templateId);
 
+  const optionalFabricPaths = Object.fromEntries(
+    OPTIONAL_FABRIC_FILES.map((file) => {
+      const filePath = join(dir, file);
+      if (!existsSync(filePath)) {
+        return [];
+      }
+
+      const key =
+        file === "fabric-dark.png" ? "fabricDark" : "fabricLight";
+      return [[key, filePath]];
+    }).filter((entry) => entry.length > 0),
+  ) as Pick<LoadedTemplate["paths"], "fabricDark" | "fabricLight">;
+
   const template: LoadedTemplate = {
     id: templateId,
     dir,
@@ -162,9 +207,11 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
       shadow: join(dir, "shadow.png"),
       highlight: join(dir, "highlight.png"),
       config: configPath,
+      ...optionalFabricPaths,
     },
   };
 
+  validateFabricSplitAssets(template);
   await validateAssetDimensions(template);
   return template;
 }

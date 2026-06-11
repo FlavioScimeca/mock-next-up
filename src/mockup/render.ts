@@ -7,7 +7,7 @@ import { generateOutputFilename } from "./filenames.js";
 import { runRenderPipeline } from "./pipeline.js";
 import { RenderProgress } from "./progress.js";
 import { ensureSharpReady } from "../platform/sharp/client.js";
-import { loadTemplate } from "./template.js";
+import { loadTemplate, validateFabricSplitAssets } from "./template.js";
 import type { RenderOptions, RenderResult } from "./types.js";
 
 export async function renderMockup(options: RenderOptions): Promise<RenderResult> {
@@ -23,6 +23,7 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
     ...loadedTemplate,
     config: applyRenderConfigOverride(loadedTemplate.config, configOverride),
   };
+  validateFabricSplitAssets(template);
 
   if (configOverride) {
     progress.step("apply-config-override");
