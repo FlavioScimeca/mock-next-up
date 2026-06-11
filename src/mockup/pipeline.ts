@@ -6,7 +6,11 @@ import { getDebugDir } from "../config/env.js";
 import { isPngHeader } from "../lib/png.js";
 import { RenderProgress } from "./progress.js";
 import { MockupError } from "./errors.js";
-import { applyAlphaMask, luminanceToAlphaMask } from "./mask.js";
+import {
+  applyAlphaMask,
+  extractAlphaMaskFromLayer,
+  luminanceToAlphaMask,
+} from "./mask.js";
 import { applyOpacity } from "./opacity.js";
 import type { LoadedTemplate } from "./types.js";
 
@@ -173,6 +177,11 @@ export async function runRenderPipeline(options: {
   const maskedDesign = await applyAlphaMask(designCanvas, alphaMask);
   await writeDebugImage(debug, "masked-design.png", maskedDesign);
 
+  progress.step("extract-design-alpha-mask");
+
+  const designAlphaMask = await extractAlphaMaskFromLayer(maskedDesign);
+  await writeDebugImage(debug, "design-alpha-mask.png", designAlphaMask);
+
   progress.step("composite-base", { basePath: template.paths.base });
 
   const composites: Array<{
@@ -195,10 +204,13 @@ export async function runRenderPipeline(options: {
       template.paths.shadow,
       layers.shadow.opacity,
     );
-    const maskedShadow = await applyAlphaMask(shadowWithOpacity, alphaMask);
-    await writeDebugImage(debug, "masked-shadow.png", maskedShadow);
+    const clippedShadow = await applyAlphaMask(
+      shadowWithOpacity,
+      designAlphaMask,
+    );
+    await writeDebugImage(debug, "clipped-shadow.png", clippedShadow);
     composites.push({
-      input: maskedShadow,
+      input: clippedShadow,
       blend: "multiply",
     });
   }
@@ -213,13 +225,13 @@ export async function runRenderPipeline(options: {
       template.paths.highlight,
       layers.highlight.opacity,
     );
-    const maskedHighlight = await applyAlphaMask(
+    const clippedHighlight = await applyAlphaMask(
       highlightWithOpacity,
-      alphaMask,
+      designAlphaMask,
     );
-    await writeDebugImage(debug, "masked-highlight.png", maskedHighlight);
+    await writeDebugImage(debug, "clipped-highlight.png", clippedHighlight);
     composites.push({
-      input: maskedHighlight,
+      input: clippedHighlight,
       blend: "screen",
     });
   }

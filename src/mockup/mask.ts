@@ -30,6 +30,33 @@ export async function luminanceToAlphaMask(maskPath: string): Promise<Buffer> {
     .toBuffer();
 }
 
+export async function extractAlphaMaskFromLayer(layer: Buffer): Promise<Buffer> {
+  const sharp = getSharp();
+  const { data, info } = await sharp(layer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const output = Buffer.alloc(data.length);
+
+  for (let i = 0; i < data.length; i += 4) {
+    output[i] = 255;
+    output[i + 1] = 255;
+    output[i + 2] = 255;
+    output[i + 3] = data[i + 3];
+  }
+
+  return sharp(output, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: 4,
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
 export async function applyAlphaMask(
   layer: Buffer,
   alphaMask: Buffer,

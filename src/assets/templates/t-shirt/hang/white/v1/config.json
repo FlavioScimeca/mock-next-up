@@ -14,12 +14,12 @@
     "shadow": {
       "enabled": true,
       "blend": "multiply",
-      "opacity": 0.42
+      "opacity": 0.22
     },
     "highlight": {
       "enabled": true,
       "blend": "screen",
-      "opacity": 0.18
+      "opacity": 0.10
     }
   },
   "output": {
