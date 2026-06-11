@@ -24,6 +24,10 @@ export interface PrintConfig {
   rasterize?: boolean;
   resolutionScale?: number;
   soften?: number;
+  brightness?: number;
+  saturation?: number;
+  contrast?: number;
+  blackLift?: number;
 }
 
 export interface FabricConfig {

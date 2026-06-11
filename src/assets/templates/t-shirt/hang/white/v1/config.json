@@ -16,28 +16,32 @@
   "print": {
     "rasterize": true,
     "resolutionScale": 0.7,
-    "soften": 0.35
+    "soften": 0.35,
+    "brightness": 1.02,
+    "saturation": 0.96,
+    "contrast": 0.95,
+    "blackLift": 6
   },
   "fabric": {
     "enabled": true,
     "textureSource": "shadow",
-    "textureOpacity": 0.02,
+    "textureOpacity": 0.01,
     "blend": "multiply"
   },
   "layers": {
     "shadow": {
       "enabled": true,
       "blend": "multiply",
-      "opacity": 0.08
+      "opacity": 0.06
     },
     "highlight": {
       "enabled": true,
       "blend": "screen",
-      "opacity": 0.18
+      "opacity": 0.14
     }
   },
   "output": {
-    "format": "png",
+    "format": "jpeg",
     "quality": 90
   }
 }

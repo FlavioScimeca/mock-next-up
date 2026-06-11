@@ -91,3 +91,75 @@ export async function simulatePrintRaster(
     .png()
     .toBuffer();
 }
+
+function isPrintColorDefault(options?: PrintConfig): boolean {
+  return (
+    (options?.brightness ?? 1) === 1 &&
+    (options?.saturation ?? 1) === 1 &&
+    (options?.contrast ?? 1) === 1 &&
+    (options?.blackLift ?? 0) === 0
+  );
+}
+
+function applyContrastAndBlackLift(
+  data: Buffer,
+  contrast: number,
+  blackLift: number,
+): void {
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+
+    if (alpha === 0) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      continue;
+    }
+
+    let r = Math.round((data[i] - 128) * contrast + 128);
+    let g = Math.round((data[i + 1] - 128) * contrast + 128);
+    let b = Math.round((data[i + 2] - 128) * contrast + 128);
+
+    data[i] = Math.min(255, Math.max(0, r + blackLift));
+    data[i + 1] = Math.min(255, Math.max(0, g + blackLift));
+    data[i + 2] = Math.min(255, Math.max(0, b + blackLift));
+  }
+}
+
+export function hasPrintColorAdjustment(options?: PrintConfig): boolean {
+  return !isPrintColorDefault(options);
+}
+
+export async function adjustPrintColor(
+  input: Buffer,
+  options?: PrintConfig,
+): Promise<Buffer> {
+  if (isPrintColorDefault(options)) {
+    return input;
+  }
+
+  const sharp = getSharp();
+  const brightness = options?.brightness ?? 1;
+  const saturation = options?.saturation ?? 1;
+  const contrast = options?.contrast ?? 1;
+  const blackLift = options?.blackLift ?? 0;
+
+  const modulated = await sharp(input)
+    .ensureAlpha()
+    .modulate({ brightness, saturation })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const output = Buffer.from(modulated.data);
+  applyContrastAndBlackLift(output, contrast, blackLift);
+
+  return sharp(output, {
+    raw: {
+      width: modulated.info.width,
+      height: modulated.info.height,
+      channels: 4,
+    },
+  })
+    .png()
+    .toBuffer();
+}

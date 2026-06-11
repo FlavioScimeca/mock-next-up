@@ -247,6 +247,28 @@ function parsePrint(raw: unknown): TemplateConfig["print"] {
     print.soften = parseOptionalNumberInRange(raw, "soften", "print", 0, 2);
   }
 
+  if ("brightness" in raw) {
+    print.brightness = parseOptionalNumberInRange(
+      raw,
+      "brightness",
+      "print",
+      0.5,
+      1.5,
+    );
+  }
+
+  if ("saturation" in raw) {
+    print.saturation = parseOptionalNumberInRange(raw, "saturation", "print", 0, 2);
+  }
+
+  if ("contrast" in raw) {
+    print.contrast = parseOptionalNumberInRange(raw, "contrast", "print", 0.5, 1.5);
+  }
+
+  if ("blackLift" in raw) {
+    print.blackLift = parseOptionalNumberInRange(raw, "blackLift", "print", 0, 50);
+  }
+
   return print;
 }
 
@@ -479,10 +501,10 @@ export function validateTemplateConfig(
   const format = requireString(raw.output, "format", "output");
   const quality = requireNumber(raw.output, "quality", "output");
 
-  if (format !== "png") {
+  if (format !== "png" && format !== "jpeg") {
     throw new MockupError(
       "INVALID_CONFIG",
-      'Invalid template config: output.format must be "png" for MVP',
+      'Invalid template config: output.format must be "png" or "jpeg"',
       422,
     );
   }

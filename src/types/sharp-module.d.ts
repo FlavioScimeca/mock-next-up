@@ -30,13 +30,21 @@ declare module "sharp" {
     ensureAlpha(): SharpInstance;
     raw(): SharpInstance;
     resize(
-      width: number,
-      height: number,
+      width?: number,
+      height?: number,
       options?: { fit?: string; kernel?: string },
     ): SharpInstance;
     blur(sigma: number): SharpInstance;
+    modulate(options: {
+      brightness?: number;
+      saturation?: number;
+    }): SharpInstance;
+    flatten(options?: {
+      background?: { r: number; g: number; b: number };
+    }): SharpInstance;
     composite(overlays: OverlayOptions[]): SharpInstance;
     png(): SharpInstance;
+    jpeg(options?: { quality?: number }): SharpInstance;
     metadata(): Promise<Metadata>;
     toBuffer(): Promise<Buffer>;
     toBuffer(options: { resolveWithObject: true }): Promise<{

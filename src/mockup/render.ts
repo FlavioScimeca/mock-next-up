@@ -6,7 +6,8 @@ import { MockupError } from "./errors.js";
 import { generateOutputFilename } from "./filenames.js";
 import { runRenderPipeline } from "./pipeline.js";
 import { RenderProgress } from "./progress.js";
-import { ensureSharpReady } from "../platform/sharp/client.js";
+import { ensureSharpReady, getSharp } from "../platform/sharp/client.js";
+import { buildDebugContactSheet } from "./contact-sheet.js";
 import { loadTemplate, validateFabricSplitAssets } from "./template.js";
 import type { RenderOptions, RenderResult } from "./types.js";
 
@@ -35,9 +36,12 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
     canvas: `${template.config.canvas.width}x${template.config.canvas.height}`,
   });
 
+  const outputFormat =
+    template.config.output.format === "jpeg" ? "jpeg" : "png";
+
   const outputPath = options.outputPath
     ? options.outputPath
-    : join(env.outputsDir, generateOutputFilename(templateId));
+    : join(env.outputsDir, generateOutputFilename(templateId, outputFormat));
 
   await mkdir(env.outputsDir, { recursive: true });
   if (debug) {
@@ -75,9 +79,18 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
   try {
     progress.step("write-output", { outputPath: relativeOutputPath });
 
-    await writeFile(outputPath, finalBuffer);
+    const encodedBuffer =
+      outputFormat === "jpeg"
+        ? await getSharp()(finalBuffer)
+            .flatten({ background: { r: 255, g: 255, b: 255 } })
+            .jpeg({ quality: template.config.output.quality })
+            .toBuffer()
+        : finalBuffer;
+
+    await writeFile(outputPath, encodedBuffer);
     if (debug) {
       await writeFile(join(getDebugDir(), "final.png"), finalBuffer);
+      await buildDebugContactSheet(getDebugDir());
     }
   } catch (error) {
     progress.step("failed", {

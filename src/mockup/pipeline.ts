@@ -12,7 +12,7 @@ import {
   luminanceToAlphaMask,
 } from "./mask.js";
 import { applyOpacity } from "./opacity.js";
-import { simulatePrintRaster } from "./print.js";
+import { adjustPrintColor, hasPrintColorAdjustment, simulatePrintRaster } from "./print.js";
 import type { LoadedTemplate } from "./types.js";
 
 async function writeDebugImage(
@@ -183,6 +183,22 @@ export async function runRenderPipeline(options: {
 
   await writeDebugImage(debug, "print-ready-design.png", printReadyDesign);
 
+  if (hasPrintColorAdjustment(printConfig)) {
+    progress.step("adjust-print-color", {
+      brightness: printConfig?.brightness ?? 1,
+      saturation: printConfig?.saturation ?? 1,
+      contrast: printConfig?.contrast ?? 1,
+      blackLift: printConfig?.blackLift ?? 0,
+    });
+  }
+
+  const printAdjustedDesign = await adjustPrintColor(
+    printReadyDesign,
+    printConfig,
+  );
+
+  await writeDebugImage(debug, "print-adjusted-design.png", printAdjustedDesign);
+
   progress.step("place-design-on-canvas", {
     left: placement.left,
     top: placement.top,
@@ -199,7 +215,7 @@ export async function runRenderPipeline(options: {
   })
     .composite([
       {
-        input: printReadyDesign,
+        input: printAdjustedDesign,
         left: placement.left,
         top: placement.top,
       },

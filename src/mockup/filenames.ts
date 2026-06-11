@@ -4,7 +4,10 @@ function pad(value: number): string {
   return value.toString().padStart(2, "0");
 }
 
-export function generateOutputFilename(templateId: string): string {
+export function generateOutputFilename(
+  templateId: string,
+  format: "png" | "jpeg" = "png",
+): string {
   const now = new Date();
   const date = [
     now.getFullYear(),
@@ -15,6 +18,7 @@ export function generateOutputFilename(templateId: string): string {
     "",
   );
   const suffix = randomBytes(2).toString("hex");
+  const extension = format === "jpeg" ? "jpg" : "png";
 
-  return `${templateId}-${date}-${time}-${suffix}.png`;
+  return `${templateId}-${date}-${time}-${suffix}.${extension}`;
 }
