@@ -14,6 +14,8 @@ import {
 import { withRenderLock } from "../mockup/lock.js";
 import { renderMockup } from "../mockup/render.js";
 import { ensureSharpReady } from "../platform/sharp/client.js";
+import { validateRenderConfigOverride } from "../mockup/config.js";
+import type { RenderConfigOverride } from "../mockup/types.js";
 
 export const mockupRoutes = new Elysia()
   .post(
@@ -71,10 +73,13 @@ export const mockupRoutes = new Elysia()
       try {
         await writeFile(uploadPath, designBuffer);
 
+        const configOverride = parseRenderConfigOverride(body.config);
+
         const result = await withRenderLock(() =>
           renderMockup({
             templateId,
             designPath: uploadPath,
+            configOverride,
           }),
         );
 
@@ -107,6 +112,7 @@ export const mockupRoutes = new Elysia()
       body: t.Object({
         templateId: t.String(),
         design: t.File(),
+        config: t.Optional(t.String()),
       }),
     },
   )
@@ -179,4 +185,26 @@ function parseDebugFlag(value: boolean | string | undefined): boolean {
   }
 
   return false;
+}
+
+function parseRenderConfigOverride(
+  value: string | undefined,
+): RenderConfigOverride | undefined {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "config must be valid JSON",
+      422,
+    );
+  }
+
+  return validateRenderConfigOverride(parsed);
 }

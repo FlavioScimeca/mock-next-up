@@ -56,11 +56,21 @@ export interface LoadedTemplate {
   };
 }
 
+export interface RenderConfigOverride {
+  design?: DesignConfig;
+  fabric?: FabricConfig;
+  layers?: {
+    shadow?: Partial<LayerConfig>;
+    highlight?: Partial<LayerConfig>;
+  };
+}
+
 export interface RenderOptions {
   templateId: string;
   designPath: string;
   outputPath?: string;
   debug?: boolean;
+  configOverride?: RenderConfigOverride;
 }
 
 export interface RenderResult {

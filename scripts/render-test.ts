@@ -25,6 +25,19 @@ try {
       templateId,
       designPath,
       debug: true,
+      configOverride: {
+        design: { opacity: 0.8 },
+        fabric: {
+          enabled: true,
+          textureSource: "shadow",
+          textureOpacity: 0.5,
+          blend: "multiply",
+        },
+        layers: {
+          shadow: { enabled: true, blend: "multiply", opacity: 0.6 },
+          highlight: { enabled: true, blend: "screen", opacity: 0.3 },
+        },
+      },
     }),
   );
 

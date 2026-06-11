@@ -1,5 +1,5 @@
 import { MockupError } from "./errors.js";
-import type { TemplateConfig } from "./types.js";
+import type { LayerConfig, RenderConfigOverride, TemplateConfig } from "./types.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -180,6 +180,125 @@ function parseFabric(raw: unknown): TemplateConfig["fabric"] {
   }
 
   return fabric;
+}
+
+function parseLayerOverride(
+  raw: unknown,
+  path: string,
+  expectedBlend: string,
+): Partial<LayerConfig> {
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      `Invalid render config: ${path} must be an object`,
+      422,
+    );
+  }
+
+  const layer: Partial<LayerConfig> = {};
+
+  if ("enabled" in raw) {
+    layer.enabled = requireBoolean(raw, "enabled", path);
+  }
+
+  if ("blend" in raw) {
+    const blend = requireString(raw, "blend", path);
+    if (blend !== expectedBlend) {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        `Invalid render config: ${path}.blend must be "${expectedBlend}"`,
+        422,
+      );
+    }
+    layer.blend = blend;
+  }
+
+  if ("opacity" in raw) {
+    layer.opacity = parseOptionalOpacity(raw, "opacity", path);
+  }
+
+  return layer;
+}
+
+export function validateRenderConfigOverride(
+  raw: unknown,
+): RenderConfigOverride {
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid render config: must be an object",
+      422,
+    );
+  }
+
+  const override: RenderConfigOverride = {};
+
+  if ("design" in raw) {
+    override.design = parseDesign(raw.design);
+  }
+
+  if ("fabric" in raw) {
+    override.fabric = parseFabric(raw.fabric);
+  }
+
+  if ("layers" in raw) {
+    if (!isRecord(raw.layers)) {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        "Invalid render config: layers must be an object",
+        422,
+      );
+    }
+
+    const layers: NonNullable<RenderConfigOverride["layers"]> = {};
+
+    if ("shadow" in raw.layers) {
+      layers.shadow = parseLayerOverride(
+        raw.layers.shadow,
+        "layers.shadow",
+        "multiply",
+      );
+    }
+
+    if ("highlight" in raw.layers) {
+      layers.highlight = parseLayerOverride(
+        raw.layers.highlight,
+        "layers.highlight",
+        "screen",
+      );
+    }
+
+    override.layers = layers;
+  }
+
+  return override;
+}
+
+export function applyRenderConfigOverride(
+  base: TemplateConfig,
+  override?: RenderConfigOverride,
+): TemplateConfig {
+  if (!override) {
+    return base;
+  }
+
+  return {
+    ...base,
+    ...(override.design !== undefined
+      ? { design: { ...base.design, ...override.design } }
+      : {}),
+    ...(override.fabric !== undefined
+      ? { fabric: { ...base.fabric, ...override.fabric } }
+      : {}),
+    layers: {
+      shadow: override.layers?.shadow
+        ? { ...base.layers.shadow, ...override.layers.shadow }
+        : base.layers.shadow,
+      highlight: override.layers?.highlight
+        ? { ...base.layers.highlight, ...override.layers.highlight }
+        : base.layers.highlight,
+    },
+  };
 }
 
 export function validateTemplateConfig(

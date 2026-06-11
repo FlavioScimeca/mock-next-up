@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { env, getDebugDir } from "../config/env.js";
+import { applyRenderConfigOverride } from "./config.js";
 import { MockupError } from "./errors.js";
 import { generateOutputFilename } from "./filenames.js";
 import { runRenderPipeline } from "./pipeline.js";
@@ -11,13 +12,21 @@ import type { RenderOptions, RenderResult } from "./types.js";
 
 export async function renderMockup(options: RenderOptions): Promise<RenderResult> {
   await ensureSharpReady();
-  const { templateId, designPath, debug = false } = options;
+  const { templateId, designPath, debug = false, configOverride } = options;
   const startedAt = Date.now();
   const progress = new RenderProgress();
 
   progress.step("start", { templateId, designPath, debug });
 
-  const template = await loadTemplate(templateId);
+  const loadedTemplate = await loadTemplate(templateId);
+  const template = {
+    ...loadedTemplate,
+    config: applyRenderConfigOverride(loadedTemplate.config, configOverride),
+  };
+
+  if (configOverride) {
+    progress.step("apply-config-override");
+  }
 
   progress.step("load-template", {
     templateId: template.id,
