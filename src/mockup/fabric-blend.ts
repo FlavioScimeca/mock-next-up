@@ -40,11 +40,10 @@ export function shouldUseEmbeddedFabric(fabric?: FabricConfig): boolean {
     return false;
   }
 
-  if (fabric.embedded !== undefined) {
-    return fabric.embedded;
-  }
-
-  return fabric.textureSource === "fabricSplit";
+  // Embedded fabric rewrites the design pixels directly. It can look very good
+  // with carefully prepared fabric-dark/fabric-light assets, but it is more
+  // destructive than the normal overlay path. Keep it opt-in only.
+  return fabric.embedded === true;
 }
 
 export async function applyKnockoutFabricBlend(
