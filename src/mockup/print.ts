@@ -163,3 +163,69 @@ export async function adjustPrintColor(
     .png()
     .toBuffer();
 }
+
+export async function applyEdgeSpread(
+  input: Buffer,
+  spread: number,
+): Promise<Buffer> {
+  if (spread <= 0) {
+    return input;
+  }
+
+  const sharp = getSharp();
+  const { data, info } = await sharp(input)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const width = info.width;
+  const height = info.height;
+  const radius = Math.min(2, Math.round(spread));
+  const source = Buffer.from(data);
+  const expanded = Buffer.from(data);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = (y * width + x) * 4;
+      if (source[index + 3] > 0) {
+        continue;
+      }
+
+      let maxNeighborAlpha = 0;
+      let sampleR = 0;
+      let sampleG = 0;
+      let sampleB = 0;
+
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+            continue;
+          }
+          const neighborIndex = (ny * width + nx) * 4;
+          const neighborAlpha = source[neighborIndex + 3];
+          if (neighborAlpha > maxNeighborAlpha) {
+            maxNeighborAlpha = neighborAlpha;
+            sampleR = source[neighborIndex];
+            sampleG = source[neighborIndex + 1];
+            sampleB = source[neighborIndex + 2];
+          }
+        }
+      }
+
+      if (maxNeighborAlpha > 0) {
+        expanded[index] = sampleR;
+        expanded[index + 1] = sampleG;
+        expanded[index + 2] = sampleB;
+        expanded[index + 3] = Math.round(maxNeighborAlpha * 0.35);
+      }
+    }
+  }
+
+  return sharp(expanded, {
+    raw: { width, height, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+}

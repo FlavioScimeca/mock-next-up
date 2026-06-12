@@ -7,6 +7,7 @@ import { validateTemplateConfig } from "./config.js";
 import { MockupError } from "./errors.js";
 import {
   OPTIONAL_FABRIC_FILES,
+  OPTIONAL_TEMPLATE_FILES,
   REQUIRED_TEMPLATE_FILES,
   type LoadedTemplate,
 } from "./types.js";
@@ -108,6 +109,8 @@ async function validateAssetDimensions(
     ["highlight.png", template.paths.highlight],
     ["fabric-dark.png", template.paths.fabricDark],
     ["fabric-light.png", template.paths.fabricLight],
+    ["fabric-texture.png", template.paths.fabricTexture],
+    ["displacement.png", template.paths.displacement],
   ] as const;
 
   for (const [name, assetPath] of assets) {
@@ -127,6 +130,37 @@ async function validateAssetDimensions(
         422,
       );
     }
+  }
+}
+
+export function validateWarpAssets(template: LoadedTemplate): void {
+  if (!template.config.warp?.enabled) {
+    return;
+  }
+
+  if (!template.paths.displacement) {
+    throw new MockupError(
+      "MISSING_TEMPLATE_ASSET",
+      "Template asset missing: displacement.png required by warp.enabled",
+      422,
+    );
+  }
+}
+
+export function validateFabricTextureAsset(template: LoadedTemplate): void {
+  if (
+    !template.config.fabric?.enabled ||
+    template.config.fabric.textureSource !== "fabricTexture"
+  ) {
+    return;
+  }
+
+  if (!template.paths.fabricTexture) {
+    throw new MockupError(
+      "MISSING_TEMPLATE_ASSET",
+      "Template asset missing: fabric-texture.png required by fabric.textureSource=fabricTexture",
+      422,
+    );
   }
 }
 
@@ -197,6 +231,19 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
     }),
   ) as Pick<LoadedTemplate["paths"], "fabricDark" | "fabricLight">;
 
+  const optionalTemplatePaths = Object.fromEntries(
+    OPTIONAL_TEMPLATE_FILES.flatMap((file) => {
+      const filePath = join(dir, file);
+      if (!existsSync(filePath)) {
+        return [];
+      }
+
+      const key =
+        file === "fabric-texture.png" ? "fabricTexture" : "displacement";
+      return [[key, filePath]];
+    }),
+  ) as Pick<LoadedTemplate["paths"], "fabricTexture" | "displacement">;
+
   const template: LoadedTemplate = {
     id: templateId,
     dir,
@@ -208,10 +255,13 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
       highlight: join(dir, "highlight.png"),
       config: configPath,
       ...optionalFabricPaths,
+      ...optionalTemplatePaths,
     },
   };
 
   validateFabricSplitAssets(template);
+  validateFabricTextureAsset(template);
+  validateWarpAssets(template);
   await validateAssetDimensions(template);
   return template;
 }

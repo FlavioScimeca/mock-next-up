@@ -13,20 +13,31 @@
   "design": {
     "opacity": 1
   },
+  "mask": {
+    "feather": 1
+  },
   "print": {
     "rasterize": true,
     "resolutionScale": 0.7,
     "soften": 0.35,
-    "brightness": 1.02,
-    "saturation": 0.96,
-    "contrast": 0.95,
-    "blackLift": 6
+    "substrate": "dark",
+    "edgeSpread": 1
+  },
+  "warp": {
+    "enabled": true,
+    "strength": 6,
+    "source": "displacement"
   },
   "fabric": {
     "enabled": true,
     "textureSource": "fabricSplit",
     "darkOpacity": 0.05,
-    "lightOpacity": 0.05
+    "lightOpacity": 0.05,
+    "embedded": true
+  },
+  "harmonize": {
+    "grain": 0.35,
+    "colorMatch": true
   },
   "layers": {
     "shadow": {

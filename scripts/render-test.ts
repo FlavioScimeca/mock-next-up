@@ -69,19 +69,6 @@ for (const designPath of designPaths) {
         designPath,
         outputPath,
         debug: true,
-        configOverride: {
-          design: { opacity: 0.92 },
-          fabric: {
-            enabled: true,
-            textureSource: "shadow",
-            textureOpacity: 0.95,
-            blend: "multiply",
-          },
-          layers: {
-            shadow: { enabled: true, blend: "multiply", opacity: 0.9 },
-            highlight: { enabled: true, blend: "screen", opacity: 0.9 },
-          },
-        },
       }),
     );
 

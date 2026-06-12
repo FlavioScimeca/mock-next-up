@@ -1,5 +1,14 @@
 import { MockupError } from "./errors.js";
-import type { LayerConfig, RenderConfigOverride, TemplateConfig } from "./types.js";
+import type {
+  CompositeBlendMode,
+  HarmonizeConfig,
+  LayerConfig,
+  MaskConfig,
+  Point,
+  RenderConfigOverride,
+  TemplateConfig,
+  WarpConfig,
+} from "./types.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -86,7 +95,7 @@ function parseLayer(
     );
   }
 
-  return { enabled, blend, opacity };
+  return { enabled, blend: blend as CompositeBlendMode, opacity };
 }
 
 function parseOptionalOpacity(
@@ -149,10 +158,14 @@ function parseFabric(raw: unknown): TemplateConfig["fabric"] {
 
   if ("textureSource" in raw) {
     const textureSource = requireString(raw, "textureSource", "fabric");
-    if (textureSource !== "shadow" && textureSource !== "fabricSplit") {
+    if (
+      textureSource !== "shadow" &&
+      textureSource !== "fabricSplit" &&
+      textureSource !== "fabricTexture"
+    ) {
       throw new MockupError(
         "INVALID_CONFIG",
-        'Invalid template config: fabric.textureSource must be "shadow" or "fabricSplit"',
+        'Invalid template config: fabric.textureSource must be "shadow", "fabricSplit", or "fabricTexture"',
         422,
       );
     }
@@ -177,17 +190,145 @@ function parseFabric(raw: unknown): TemplateConfig["fabric"] {
 
   if ("blend" in raw) {
     const blend = requireString(raw, "blend", "fabric");
-    if (blend !== "multiply") {
+    if (
+      blend !== "multiply" &&
+      blend !== "overlay" &&
+      blend !== "soft-light"
+    ) {
       throw new MockupError(
         "INVALID_CONFIG",
-        'Invalid template config: fabric.blend must be "multiply"',
+        'Invalid template config: fabric.blend must be "multiply", "overlay", or "soft-light"',
         422,
       );
     }
-    fabric.blend = "multiply";
+    fabric.blend = blend;
+  }
+
+  if ("embedded" in raw) {
+    fabric.embedded = requireBoolean(raw, "embedded", "fabric");
   }
 
   return fabric;
+}
+
+function parsePoint(raw: unknown, path: string): Point {
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      `Invalid template config: ${path} must be an object`,
+      422,
+    );
+  }
+
+  return {
+    x: requireNumber(raw, "x", path),
+    y: requireNumber(raw, "y", path),
+  };
+}
+
+function parsePrintAreaQuad(
+  raw: unknown,
+): [Point, Point, Point, Point] | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(raw) || raw.length !== 4) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: printArea.quad must be an array of 4 points",
+      422,
+    );
+  }
+
+  return raw.map((point, index) =>
+    parsePoint(point, `printArea.quad[${index}]`),
+  ) as [Point, Point, Point, Point];
+}
+
+function parseMask(raw: unknown): MaskConfig | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: mask must be an object",
+      422,
+    );
+  }
+
+  const mask: MaskConfig = {};
+  if ("feather" in raw) {
+    mask.feather = parseOptionalNumberInRange(raw, "feather", "mask", 0, 20);
+  }
+
+  return mask;
+}
+
+function parseWarp(raw: unknown): WarpConfig | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: warp must be an object",
+      422,
+    );
+  }
+
+  const warp: WarpConfig = {};
+
+  if ("enabled" in raw) {
+    warp.enabled = requireBoolean(raw, "enabled", "warp");
+  }
+
+  if ("strength" in raw) {
+    warp.strength = parseOptionalNumberInRange(raw, "strength", "warp", 0, 20);
+  }
+
+  if ("source" in raw) {
+    const source = requireString(raw, "source", "warp");
+    if (source !== "displacement") {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        'Invalid template config: warp.source must be "displacement"',
+        422,
+      );
+    }
+    warp.source = "displacement";
+  }
+
+  return warp;
+}
+
+function parseHarmonize(raw: unknown): HarmonizeConfig | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw)) {
+    throw new MockupError(
+      "INVALID_CONFIG",
+      "Invalid template config: harmonize must be an object",
+      422,
+    );
+  }
+
+  const harmonize: HarmonizeConfig = {};
+
+  if ("grain" in raw) {
+    harmonize.grain = parseOptionalNumberInRange(raw, "grain", "harmonize", 0, 1);
+  }
+
+  if ("colorMatch" in raw) {
+    harmonize.colorMatch = requireBoolean(raw, "colorMatch", "harmonize");
+  }
+
+  return harmonize;
 }
 
 function parseOptionalNumberInRange(
@@ -269,6 +410,22 @@ function parsePrint(raw: unknown): TemplateConfig["print"] {
     print.blackLift = parseOptionalNumberInRange(raw, "blackLift", "print", 0, 50);
   }
 
+  if ("substrate" in raw) {
+    const substrate = requireString(raw, "substrate", "print");
+    if (substrate !== "light" && substrate !== "dark" && substrate !== "color") {
+      throw new MockupError(
+        "INVALID_CONFIG",
+        'Invalid template config: print.substrate must be "light", "dark", or "color"',
+        422,
+      );
+    }
+    print.substrate = substrate;
+  }
+
+  if ("edgeSpread" in raw) {
+    print.edgeSpread = parseOptionalNumberInRange(raw, "edgeSpread", "print", 0, 2);
+  }
+
   return print;
 }
 
@@ -300,7 +457,7 @@ function parseLayerOverride(
         422,
       );
     }
-    layer.blend = blend;
+    layer.blend = blend as CompositeBlendMode;
   }
 
   if ("opacity" in raw) {
@@ -333,6 +490,18 @@ export function validateRenderConfigOverride(
 
   if ("print" in raw) {
     override.print = parsePrint(raw.print);
+  }
+
+  if ("mask" in raw) {
+    override.mask = parseMask(raw.mask);
+  }
+
+  if ("warp" in raw) {
+    override.warp = parseWarp(raw.warp);
+  }
+
+  if ("harmonize" in raw) {
+    override.harmonize = parseHarmonize(raw.harmonize);
   }
 
   if ("layers" in raw) {
@@ -386,6 +555,15 @@ export function applyRenderConfigOverride(
       : {}),
     ...(override.print !== undefined
       ? { print: { ...base.print, ...override.print } }
+      : {}),
+    ...(override.mask !== undefined
+      ? { mask: { ...base.mask, ...override.mask } }
+      : {}),
+    ...(override.warp !== undefined
+      ? { warp: { ...base.warp, ...override.warp } }
+      : {}),
+    ...(override.harmonize !== undefined
+      ? { harmonize: { ...base.harmonize, ...override.harmonize } }
       : {}),
     layers: {
       shadow: override.layers?.shadow
@@ -452,6 +630,9 @@ export function validateTemplateConfig(
     y: requireNumber(raw.printArea, "y", "printArea"),
     width: requireNumber(raw.printArea, "width", "printArea"),
     height: requireNumber(raw.printArea, "height", "printArea"),
+    ...(raw.printArea.quad !== undefined
+      ? { quad: parsePrintAreaQuad(raw.printArea.quad) }
+      : {}),
   };
 
   if (printArea.width <= 0 || printArea.height <= 0) {
@@ -520,6 +701,9 @@ export function validateTemplateConfig(
   const design = parseDesign(raw.design);
   const fabric = parseFabric(raw.fabric);
   const print = parsePrint(raw.print);
+  const mask = parseMask(raw.mask);
+  const warp = parseWarp(raw.warp);
+  const harmonize = parseHarmonize(raw.harmonize);
 
   return {
     id,
@@ -528,6 +712,9 @@ export function validateTemplateConfig(
     ...(design !== undefined ? { design } : {}),
     ...(print !== undefined ? { print } : {}),
     ...(fabric !== undefined ? { fabric } : {}),
+    ...(mask !== undefined ? { mask } : {}),
+    ...(warp !== undefined ? { warp } : {}),
+    ...(harmonize !== undefined ? { harmonize } : {}),
     layers: { shadow, highlight },
     output: { format, quality },
   };

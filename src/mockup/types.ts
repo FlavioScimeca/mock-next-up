@@ -1,3 +1,15 @@
+export type CompositeBlendMode =
+  | "over"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "soft-light";
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface CanvasConfig {
   width: number;
   height: number;
@@ -8,17 +20,20 @@ export interface PrintAreaConfig {
   y: number;
   width: number;
   height: number;
+  quad?: [Point, Point, Point, Point];
 }
 
 export interface LayerConfig {
   enabled: boolean;
-  blend: string;
+  blend: CompositeBlendMode;
   opacity: number;
 }
 
 export interface DesignConfig {
   opacity?: number;
 }
+
+export type PrintSubstrate = "light" | "dark" | "color";
 
 export interface PrintConfig {
   rasterize?: boolean;
@@ -28,15 +43,33 @@ export interface PrintConfig {
   saturation?: number;
   contrast?: number;
   blackLift?: number;
+  substrate?: PrintSubstrate;
+  edgeSpread?: number;
 }
 
 export interface FabricConfig {
   enabled?: boolean;
-  textureSource?: "shadow" | "fabricSplit";
+  textureSource?: "shadow" | "fabricSplit" | "fabricTexture";
   textureOpacity?: number;
   darkOpacity?: number;
   lightOpacity?: number;
-  blend?: "multiply";
+  blend?: "multiply" | "overlay" | "soft-light";
+  embedded?: boolean;
+}
+
+export interface MaskConfig {
+  feather?: number;
+}
+
+export interface WarpConfig {
+  enabled?: boolean;
+  strength?: number;
+  source?: "displacement";
+}
+
+export interface HarmonizeConfig {
+  grain?: number;
+  colorMatch?: boolean;
 }
 
 export interface TemplateConfig {
@@ -46,6 +79,9 @@ export interface TemplateConfig {
   design?: DesignConfig;
   print?: PrintConfig;
   fabric?: FabricConfig;
+  mask?: MaskConfig;
+  warp?: WarpConfig;
+  harmonize?: HarmonizeConfig;
   layers: {
     shadow: LayerConfig;
     highlight: LayerConfig;
@@ -68,6 +104,8 @@ export interface LoadedTemplate {
     config: string;
     fabricDark?: string;
     fabricLight?: string;
+    fabricTexture?: string;
+    displacement?: string;
   };
 }
 
@@ -75,6 +113,9 @@ export interface RenderConfigOverride {
   design?: DesignConfig;
   print?: PrintConfig;
   fabric?: FabricConfig;
+  mask?: MaskConfig;
+  warp?: WarpConfig;
+  harmonize?: HarmonizeConfig;
   layers?: {
     shadow?: Partial<LayerConfig>;
     highlight?: Partial<LayerConfig>;
@@ -108,4 +149,9 @@ export const REQUIRED_TEMPLATE_FILES = [
 export const OPTIONAL_FABRIC_FILES = [
   "fabric-dark.png",
   "fabric-light.png",
+] as const;
+
+export const OPTIONAL_TEMPLATE_FILES = [
+  "fabric-texture.png",
+  "displacement.png",
 ] as const;

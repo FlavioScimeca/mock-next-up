@@ -8,7 +8,12 @@ import { runRenderPipeline } from "./pipeline.js";
 import { RenderProgress } from "./progress.js";
 import { ensureSharpReady, getSharp } from "../platform/sharp/client.js";
 import { buildDebugContactSheet } from "./contact-sheet.js";
-import { loadTemplate, validateFabricSplitAssets } from "./template.js";
+import {
+  loadTemplate,
+  validateFabricSplitAssets,
+  validateFabricTextureAsset,
+  validateWarpAssets,
+} from "./template.js";
 import type { RenderOptions, RenderResult } from "./types.js";
 
 export async function renderMockup(options: RenderOptions): Promise<RenderResult> {
@@ -25,6 +30,8 @@ export async function renderMockup(options: RenderOptions): Promise<RenderResult
     config: applyRenderConfigOverride(loadedTemplate.config, configOverride),
   };
   validateFabricSplitAssets(template);
+  validateFabricTextureAsset(template);
+  validateWarpAssets(template);
 
   if (configOverride) {
     progress.step("apply-config-override");

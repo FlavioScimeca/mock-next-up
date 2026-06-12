@@ -4,6 +4,15 @@ import { join } from "node:path";
 import { getSharp } from "../platform/sharp/client.js";
 import { getDebugDir } from "../config/env.js";
 import { isPngHeader } from "../lib/png.js";
+import {
+  applyLuminanceAwareMask,
+  toCompositeBlend,
+} from "./compositing.js";
+import {
+  applyKnockoutFabricBlend,
+  shouldUseEmbeddedFabric,
+} from "./fabric-blend.js";
+import { applyHarmonization } from "./harmonize.js";
 import { RenderProgress } from "./progress.js";
 import { MockupError } from "./errors.js";
 import {
@@ -12,8 +21,24 @@ import {
   luminanceToAlphaMask,
 } from "./mask.js";
 import { applyOpacity } from "./opacity.js";
-import { adjustPrintColor, hasPrintColorAdjustment, simulatePrintRaster } from "./print.js";
-import type { LoadedTemplate } from "./types.js";
+import {
+  getPrintAreaQuad,
+  hasPerspectiveWarp,
+  warpDesignToQuad,
+} from "./perspective.js";
+import {
+  adjustPrintColor,
+  applyEdgeSpread,
+  hasPrintColorAdjustment,
+  simulatePrintRaster,
+} from "./print.js";
+import {
+  applyColorSubstrateTint,
+  applySubstrateUnderbase,
+  resolveEffectivePrintConfig,
+} from "./substrate.js";
+import { applyDisplacementWarp } from "./warp.js";
+import type { CompositeBlendMode, LoadedTemplate } from "./types.js";
 
 async function writeDebugImage(
   debug: boolean,
@@ -94,10 +119,23 @@ function computeContainedPlacement(
 }
 
 function resolveFabricTexturePath(
-  source: "shadow",
+  source: "shadow" | "fabricTexture",
   paths: LoadedTemplate["paths"],
 ): string {
+  if (source === "fabricTexture" && paths.fabricTexture) {
+    return paths.fabricTexture;
+  }
+
   return paths.shadow;
+}
+
+function usesShadowAsFabric(
+  template: LoadedTemplate,
+  fabricTextureSource: string,
+): boolean {
+  return (
+    fabricTextureSource === "shadow" && !template.paths.fabricTexture
+  );
 }
 
 export async function runRenderPipeline(options: {
@@ -109,6 +147,7 @@ export async function runRenderPipeline(options: {
   const sharp = getSharp();
   const { template, designPath, debug, progress } = options;
   const { canvas, layers } = template.config;
+  const printConfig = resolveEffectivePrintConfig(template.config.print);
 
   progress.step("validate-design", { designPath });
 
@@ -117,9 +156,13 @@ export async function runRenderPipeline(options: {
   progress.step("build-alpha-mask", {
     maskPath: template.paths.mask,
     canvas: `${canvas.width}x${canvas.height}`,
+    feather: template.config.mask?.feather ?? 0,
   });
 
-  const alphaMask = await luminanceToAlphaMask(template.paths.mask);
+  const alphaMask = await luminanceToAlphaMask(
+    template.paths.mask,
+    template.config.mask?.feather ?? 0,
+  );
 
   const designMetadata = await sharp(designPath).metadata();
   const designWidth = designMetadata.width;
@@ -166,38 +209,71 @@ export async function runRenderPipeline(options: {
     );
   }
 
-  const printConfig = template.config.print;
-  if (printConfig?.rasterize) {
+  if (printConfig.rasterize) {
     progress.step("simulate-print-raster", {
       resolutionScale: printConfig.resolutionScale ?? 0.75,
       soften: printConfig.soften ?? 0.25,
+      substrate: printConfig.substrate ?? "light",
     });
   }
 
-  const printReadyDesign = await simulatePrintRaster(
+  let processedDesign = await simulatePrintRaster(
     resizedDesign,
     resizedWidth,
     resizedHeight,
     printConfig,
   );
 
-  await writeDebugImage(debug, "print-ready-design.png", printReadyDesign);
+  await writeDebugImage(debug, "print-ready-design.png", processedDesign);
+
+  if ((printConfig.edgeSpread ?? 0) > 0) {
+    progress.step("apply-edge-spread", {
+      edgeSpread: printConfig.edgeSpread,
+    });
+    processedDesign = await applyEdgeSpread(
+      processedDesign,
+      printConfig.edgeSpread ?? 0,
+    );
+  }
+
+  processedDesign = await applySubstrateUnderbase(
+    processedDesign,
+    printConfig.substrate,
+  );
 
   if (hasPrintColorAdjustment(printConfig)) {
     progress.step("adjust-print-color", {
-      brightness: printConfig?.brightness ?? 1,
-      saturation: printConfig?.saturation ?? 1,
-      contrast: printConfig?.contrast ?? 1,
-      blackLift: printConfig?.blackLift ?? 0,
+      brightness: printConfig.brightness ?? 1,
+      saturation: printConfig.saturation ?? 1,
+      contrast: printConfig.contrast ?? 1,
+      blackLift: printConfig.blackLift ?? 0,
     });
   }
 
-  const printAdjustedDesign = await adjustPrintColor(
-    printReadyDesign,
-    printConfig,
+  let printAdjustedDesign = await adjustPrintColor(processedDesign, printConfig);
+
+  printAdjustedDesign = await applyColorSubstrateTint(
+    printAdjustedDesign,
+    template.paths.base,
+    template.config.printArea,
+    printConfig.substrate,
   );
 
   await writeDebugImage(debug, "print-adjusted-design.png", printAdjustedDesign);
+
+  if (hasPerspectiveWarp(template.config.printArea)) {
+    progress.step("perspective-warp", {
+      quad: getPrintAreaQuad(template.config.printArea),
+    });
+
+    printAdjustedDesign = await warpDesignToQuad(
+      printAdjustedDesign,
+      canvas,
+      placement,
+      getPrintAreaQuad(template.config.printArea),
+    );
+    await writeDebugImage(debug, "perspective-warped-design.png", printAdjustedDesign);
+  }
 
   progress.step("place-design-on-canvas", {
     left: placement.left,
@@ -205,38 +281,77 @@ export async function runRenderPipeline(options: {
     canvas: `${canvas.width}x${canvas.height}`,
   });
 
-  const designCanvas = await sharp({
-    create: {
-      width: canvas.width,
-      height: canvas.height,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .composite([
-      {
-        input: printAdjustedDesign,
-        left: placement.left,
-        top: placement.top,
+  let designCanvas: Buffer;
+  if (hasPerspectiveWarp(template.config.printArea)) {
+    designCanvas = printAdjustedDesign;
+  } else {
+    designCanvas = await sharp({
+      create: {
+        width: canvas.width,
+        height: canvas.height,
+        channels: 4,
+        background: { r: 0, g:  0, b: 0, alpha: 0 },
       },
-    ])
-    .png()
-    .toBuffer();
+    })
+      .composite([
+        {
+          input: printAdjustedDesign,
+          left: placement.left,
+          top: placement.top,
+        },
+      ])
+      .png()
+      .toBuffer();
+  }
 
   await writeDebugImage(debug, "design-canvas.png", designCanvas);
 
   progress.step("mask-design");
 
-  const maskedDesign = await applyAlphaMask(designCanvas, alphaMask);
+  let maskedDesign = await applyAlphaMask(designCanvas, alphaMask);
   await writeDebugImage(debug, "masked-design.png", maskedDesign);
 
+  const warpConfig = template.config.warp;
+  if (warpConfig?.enabled && template.paths.displacement) {
+    progress.step("displacement-warp", {
+      strength: warpConfig.strength ?? 6,
+      source: warpConfig.source ?? "displacement",
+    });
+
+    maskedDesign = await applyDisplacementWarp(
+      maskedDesign,
+      template.paths.displacement,
+      warpConfig.strength ?? 6,
+    );
+    await writeDebugImage(debug, "warped-design.png", maskedDesign);
+  }
+
   const designOpacity = template.config.design?.opacity ?? 1;
-  const printedDesign =
+  let printedDesign =
     designOpacity < 1
       ? await applyOpacity(maskedDesign, designOpacity)
       : maskedDesign;
 
   await writeDebugImage(debug, "printed-design.png", printedDesign);
+
+  const fabric = template.config.fabric;
+  if (shouldUseEmbeddedFabric(fabric)) {
+    progress.step("apply-knockout-fabric", {
+      textureSource: fabric?.textureSource ?? "shadow",
+      embedded: true,
+    });
+
+    printedDesign = await applyKnockoutFabricBlend(
+      printedDesign,
+      template.paths.base,
+      {
+        fabric,
+        fabricDarkPath: template.paths.fabricDark,
+        fabricLightPath: template.paths.fabricLight,
+      },
+    );
+    await writeDebugImage(debug, "knockout-blend.png", printedDesign);
+  }
 
   progress.step("extract-design-alpha-mask");
 
@@ -247,7 +362,7 @@ export async function runRenderPipeline(options: {
 
   const composites: Array<{
     input: Buffer;
-    blend: "over" | "multiply" | "screen";
+    blend: CompositeBlendMode;
   }> = [
     {
       input: printedDesign,
@@ -255,12 +370,13 @@ export async function runRenderPipeline(options: {
     },
   ];
 
-  const fabric = template.config.fabric;
   const fabricEnabled = fabric?.enabled ?? false;
   const fabricTextureSource = fabric?.textureSource ?? "shadow";
   const fabricTextureOpacity = fabric?.textureOpacity ?? 0.05;
+  const fabricBlend = toCompositeBlend(fabric?.blend ?? "multiply");
+  const embeddedFabric = shouldUseEmbeddedFabric(fabric);
 
-  if (fabricEnabled) {
+  if (fabricEnabled && !embeddedFabric) {
     if (fabricTextureSource === "fabricSplit") {
       const darkOpacity = fabric?.darkOpacity ?? 0.05;
       const lightOpacity = fabric?.lightOpacity ?? 0.05;
@@ -306,13 +422,13 @@ export async function runRenderPipeline(options: {
       });
     } else {
       const texturePath = resolveFabricTexturePath(
-        fabricTextureSource,
+        fabricTextureSource === "fabricTexture" ? "fabricTexture" : "shadow",
         template.paths,
       );
 
       progress.step("apply-fabric-texture", {
         textureSource: fabricTextureSource,
-        blend: fabric?.blend ?? "multiply",
+        blend: fabricBlend,
         opacity: fabricTextureOpacity,
       });
 
@@ -327,29 +443,46 @@ export async function runRenderPipeline(options: {
       await writeDebugImage(debug, "clipped-fabric-texture.png", clippedFabricTexture);
       composites.push({
         input: clippedFabricTexture,
-        blend: "multiply",
+        blend: fabricBlend,
       });
     }
+  }
+
+  let effectiveShadowOpacity = layers.shadow.opacity;
+  if (
+    fabricEnabled &&
+    !embeddedFabric &&
+    usesShadowAsFabric(template, fabricTextureSource)
+  ) {
+    effectiveShadowOpacity = Math.max(
+      0,
+      effectiveShadowOpacity - fabricTextureOpacity,
+    );
   }
 
   if (layers.shadow.enabled) {
     progress.step("apply-shadow", {
       blend: layers.shadow.blend,
-      opacity: layers.shadow.opacity,
+      opacity: effectiveShadowOpacity,
     });
 
     const shadowWithOpacity = await applyOpacity(
       template.paths.shadow,
-      layers.shadow.opacity,
+      effectiveShadowOpacity,
+    );
+    const luminanceAwareShadow = await applyLuminanceAwareMask(
+      shadowWithOpacity,
+      printedDesign,
+      "shadow",
     );
     const clippedShadow = await applyAlphaMask(
-      shadowWithOpacity,
+      luminanceAwareShadow,
       designAlphaMask,
     );
     await writeDebugImage(debug, "clipped-shadow.png", clippedShadow);
     composites.push({
       input: clippedShadow,
-      blend: "multiply",
+      blend: toCompositeBlend(layers.shadow.blend),
     });
   }
 
@@ -363,14 +496,19 @@ export async function runRenderPipeline(options: {
       template.paths.highlight,
       layers.highlight.opacity,
     );
-    const clippedHighlight = await applyAlphaMask(
+    const luminanceAwareHighlight = await applyLuminanceAwareMask(
       highlightWithOpacity,
+      printedDesign,
+      "highlight",
+    );
+    const clippedHighlight = await applyAlphaMask(
+      luminanceAwareHighlight,
       designAlphaMask,
     );
     await writeDebugImage(debug, "clipped-highlight.png", clippedHighlight);
     composites.push({
       input: clippedHighlight,
-      blend: "screen",
+      blend: toCompositeBlend(layers.highlight.blend),
     });
   }
 
@@ -378,5 +516,26 @@ export async function runRenderPipeline(options: {
     layers: composites.length,
   });
 
-  return sharp(template.paths.base).composite(composites).png().toBuffer();
+  let finalBuffer = await sharp(template.paths.base)
+    .composite(composites)
+    .png()
+    .toBuffer();
+
+  const harmonize = template.config.harmonize;
+  if ((harmonize?.grain ?? 0) > 0 || harmonize?.colorMatch) {
+    progress.step("apply-harmonization", {
+      grain: harmonize?.grain ?? 0,
+      colorMatch: harmonize?.colorMatch ?? false,
+    });
+
+    finalBuffer = await applyHarmonization(
+      finalBuffer,
+      template.paths.base,
+      designAlphaMask,
+      template.config.printArea,
+      harmonize,
+    );
+  }
+
+  return finalBuffer;
 }

@@ -3,6 +3,8 @@ declare module "sharp" {
     | "over"
     | "multiply"
     | "screen"
+    | "overlay"
+    | "soft-light"
     | "dest-in"
     | (string & {});
 
@@ -35,6 +37,14 @@ declare module "sharp" {
       options?: { fit?: string; kernel?: string },
     ): SharpInstance;
     blur(sigma: number): SharpInstance;
+    extract(options: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    }): SharpInstance;
+    removeAlpha(): SharpInstance;
+    clone(): SharpInstance;
     modulate(options: {
       brightness?: number;
       saturation?: number;
