@@ -14,7 +14,7 @@
     "opacity": 1
   },
   "mask": {
-    "feather": 1.5
+    "feather": 1
   },
   "print": {
     "rasterize": true,
@@ -24,8 +24,7 @@
     "saturation": 0.96,
     "contrast": 0.95,
     "blackLift": 6,
-    "substrate": "light",
-    "edgeSpread": 1
+    "substrate": "light"
   },
   "fabric": {
     "enabled": true,
@@ -33,10 +32,6 @@
     "textureOpacity": 0.01,
     "blend": "multiply",
     "embedded": false
-  },
-  "harmonize": {
-    "grain": 0.25,
-    "colorMatch": true
   },
   "layers": {
     "shadow": {
