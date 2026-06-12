@@ -185,7 +185,7 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
   const config = validateTemplateConfig(raw, templateId);
 
   const optionalFabricPaths = Object.fromEntries(
-    OPTIONAL_FABRIC_FILES.map((file) => {
+    OPTIONAL_FABRIC_FILES.flatMap((file) => {
       const filePath = join(dir, file);
       if (!existsSync(filePath)) {
         return [];
@@ -194,7 +194,7 @@ export async function loadTemplate(templateId: string): Promise<LoadedTemplate> 
       const key =
         file === "fabric-dark.png" ? "fabricDark" : "fabricLight";
       return [[key, filePath]];
-    }).filter((entry) => entry.length > 0),
+    }),
   ) as Pick<LoadedTemplate["paths"], "fabricDark" | "fabricLight">;
 
   const template: LoadedTemplate = {

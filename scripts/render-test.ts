@@ -41,7 +41,8 @@ if (designPaths.length === 0) {
 
 const templateId = process.env.TEMPLATE_ID ?? "generic-hang-white";
 const template = await loadTemplate(templateId);
-const outputExtension = template.config.output.format === "jpeg" ? "jpg" : "png";
+const outputExtension =
+  template.config.output.format === "jpeg" ? "jpg" : "png";
 const outputDir = createBatchOutputDir(`render-test-${templateId}`);
 
 await mkdir(outputDir, { recursive: true });
@@ -68,6 +69,19 @@ for (const designPath of designPaths) {
         designPath,
         outputPath,
         debug: true,
+        configOverride: {
+          design: { opacity: 0.92 },
+          fabric: {
+            enabled: true,
+            textureSource: "shadow",
+            textureOpacity: 0.95,
+            blend: "multiply",
+          },
+          layers: {
+            shadow: { enabled: true, blend: "multiply", opacity: 0.9 },
+            highlight: { enabled: true, blend: "screen", opacity: 0.9 },
+          },
+        },
       }),
     );
 
