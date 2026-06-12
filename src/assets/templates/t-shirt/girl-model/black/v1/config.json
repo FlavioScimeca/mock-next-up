@@ -1,0 +1,47 @@
+{
+  "id": "black-elevator-front-v1",
+  "canvas": {
+    "width": 2000,
+    "height": 2000
+  },
+  "printArea": {
+    "x": 600,
+    "y": 520,
+    "width": 820,
+    "height": 920
+  },
+  "design": {
+    "opacity": 1
+  },
+  "print": {
+    "rasterize": true,
+    "resolutionScale": 0.7,
+    "soften": 0.35,
+    "brightness": 1.02,
+    "saturation": 0.96,
+    "contrast": 0.95,
+    "blackLift": 6
+  },
+  "fabric": {
+    "enabled": true,
+    "textureSource": "fabricSplit",
+    "darkOpacity": 0.05,
+    "lightOpacity": 0.05
+  },
+  "layers": {
+    "shadow": {
+      "enabled": true,
+      "blend": "multiply",
+      "opacity": 0.1
+    },
+    "highlight": {
+      "enabled": true,
+      "blend": "screen",
+      "opacity": 0.12
+    }
+  },
+  "output": {
+    "format": "jpeg",
+    "quality": 90
+  }
+}
