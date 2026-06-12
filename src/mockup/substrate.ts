@@ -11,11 +11,15 @@ const SUBSTRATE_DEFAULTS: Record<
     contrast: 0.95,
     blackLift: 6,
   },
+  // Dark garments still need the design softened and de-digitalized, but the
+  // previous defaults were too destructive for a generic renderer. Keep the
+  // default conservative and let specific templates opt into stronger color
+  // behavior through explicit config values.
   dark: {
-    brightness: 0.92,
-    saturation: 0.9,
-    contrast: 0.9,
-    blackLift: 10,
+    brightness: 1.02,
+    saturation: 0.96,
+    contrast: 0.95,
+    blackLift: 6,
   },
   color: {
     brightness: 1,
@@ -76,42 +80,13 @@ export async function applySubstrateUnderbase(
   input: Buffer,
   substrate: PrintSubstrate | undefined,
 ): Promise<Buffer> {
-  if (substrate !== "dark") {
-    return input;
-  }
-
-  const sharp = getSharp();
-  const { data, info } = await sharp(input)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3];
-    if (alpha === 0) {
-      continue;
-    }
-
-    const lum = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    if (lum > 200) {
-      const underbaseAlpha = Math.round(alpha * 0.55);
-      const gray = Math.round(180 + (255 - lum) * 0.15);
-      data[i] = gray;
-      data[i + 1] = gray;
-      data[i + 2] = gray;
-      data[i + 3] = underbaseAlpha;
-    }
-  }
-
-  return sharp(data, {
-    raw: {
-      width: info.width,
-      height: info.height,
-      channels: 4,
-    },
-  })
-    .png()
-    .toBuffer();
+  // Keep this hook as a future extension point, but do not mutate the design
+  // automatically. The previous dark-substrate underbase simulation was too
+  // opinionated and could make normal POD artwork look muddy or washed out.
+  // Real underbase simulation needs a separate, explicit config and better
+  // garment-specific tuning.
+  void substrate;
+  return input;
 }
 
 export async function applyColorSubstrateTint(
